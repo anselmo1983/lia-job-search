@@ -28,16 +28,18 @@ export async function POST(request: Request) {
     let text = ""
     if (file.name.endsWith(".pdf")) {
       try {
-        // Tentar extrair texto com pdf-parse (suporta PDF v2+)
-        const pdfModule = await import("pdf-parse")
-        // pdf-parse v2.x exporta PDFParse como named export
-        const PDFParse = pdfModule.PDFParse
-        if (PDFParse) {
-          const parser = new PDFParse(buffer)
-          const pageTexts = await parser.getText()
-          text = Array.isArray(pageTexts) ? pageTexts.join("\n") : String(pageTexts || "")
-        } else {
+        // Extrair texto com pdf-parse v2
+        const { PDFParse } = await import("pdf-parse")
+        if (!PDFParse) {
           text = "[PDFParse não disponível]"
+        } else {
+          const parser = new PDFParse({ data: buffer })
+          try {
+            const result = await parser.getText()
+            text = result.text
+          } finally {
+            await parser.destroy()
+          }
         }
       } catch (e) {
         text = "[Não foi possível extrair texto do PDF]"

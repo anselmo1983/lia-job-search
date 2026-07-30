@@ -2,13 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart3, BriefcaseBusiness, CalendarDays, FileText, LayoutDashboard, ListTodo, Settings, Sparkles, Users, Workflow } from "lucide-react"
+import { BarChart3, BriefcaseBusiness, CalendarDays, FileText, LayoutDashboard, ListTodo, Package, Settings, Sparkles, Users, Workflow } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/fill-ups", label: "AI Fill-Ups", icon: Sparkles },
   { href: "/jobs", label: "Jobs", icon: BriefcaseBusiness },
+  { href: "/batch", label: "Batch", icon: Package },
   { href: "/applications", label: "Applications", icon: FileText },
   { href: "/network", label: "Network", icon: Users },
   { href: "/tasks", label: "Tasks", icon: ListTodo },
