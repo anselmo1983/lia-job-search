@@ -233,10 +233,40 @@ const jobnet: Portal = {
   },
 }
 
+// ---- indeed-br-search -----------------------------------------------------
+const indeedbr: Portal = {
+  name: "indeed-br",
+  cliPath: ".agents/skills/indeed-br-search/cli/src/cli.ts",
+  buildArgs: (query, location) => {
+    const args = ["-q", query]
+    if (location) args.push("-l", location)
+    else args.push("-l", "Brasil")
+    args.push("--limit", "15")
+    return args
+  },
+  normalize: (raw, source) => {
+    const id = raw.id ?? ""
+    if (!id) return null
+    return {
+      id: `${source}_${id}`,
+      title: String(raw.title ?? "(untitled)"),
+      company: raw.company ? String(raw.company) : null,
+      location: raw.location ? String(raw.location) : null,
+      url: raw.url ? String(raw.url) : "",
+      description: raw.description ? String(raw.description) : "",
+      date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
+      source,
+      status: "discovered",
+      fit: "unrated",
+      score: null,
+    }
+  },
+}
+
 // ---------------------------------------------------------------------------
 // Portal registry – checked in order; linkedin + freehire first (broadest)
 // ---------------------------------------------------------------------------
-const PORTALS: Portal[] = [linkedin, freehire, jobindex, jobbank, jobdanmark, jobnet]
+const PORTALS: Portal[] = [linkedin, freehire, indeedbr, jobindex, jobbank, jobdanmark, jobnet]
 
 // ---------------------------------------------------------------------------
 // POST /api/scrape

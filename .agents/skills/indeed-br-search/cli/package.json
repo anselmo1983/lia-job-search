@@ -1,0 +1,17 @@
+{
+  "name": "indeed-br-cli",
+  "version": "1.0.0",
+  "description": "CLI for searching job listings on Indeed Brasil (br.indeed.com) — zero runtime dependencies.",
+  "type": "module",
+  "main": "src/cli.ts",
+  "bin": { "indeed-br-search": "src/cli.ts" },
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "test": "echo 'No tests yet'"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/bun": "latest"
+  }
+}
