@@ -1,0 +1,13 @@
+import Link from "next/link"
+import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react"
+import { EmptyState, PageHeader } from "@/components/app-shell"
+import { getJobs } from "@/lib/job-data"
+
+export const dynamic = "force-dynamic"
+export const metadata = { title: "AI Fill-Ups" }
+
+const kit = ["ATS-ready resume", "Tailored cover letter", "Interview prep", "Outreach template", "Salary tips"]
+export default async function FillUpsPage() {
+  const jobs = (await getJobs()).filter((job) => job.score !== null).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 6)
+  return <><PageHeader title="AI Job Search Fill-Ups" description="Your strongest ranked matches, ready to move into the application workflow. Run the agent on a schedule to keep this inbox fresh."/>{jobs.length === 0 ? <EmptyState title="Your first Fill-Up is waiting" description="Search and rank jobs to populate this inbox with the best-fit opportunities." command="/scrape → /rank"/> : <div className="grid gap-5 lg:grid-cols-2">{jobs.map((job) => <article key={job.key} className="rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-slate-900 to-emerald-950/20 p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">AI recommended</p><h2 className="mt-2 text-xl font-semibold">{job.title}</h2><p className="text-slate-400">{job.company} · {job.location}</p></div><div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-emerald-400 text-xl font-bold text-slate-950">{job.score}</div></div><div className="mt-5 grid gap-2 sm:grid-cols-2">{kit.map((item) => <div key={item} className="flex items-center gap-2 text-sm text-slate-300"><CheckCircle2 className="h-4 w-4 text-emerald-400"/>{item}</div>)}</div><div className="mt-6 flex items-center justify-between border-t border-slate-800 pt-4"><code className="text-sm text-emerald-300">/apply {job.url ? "<job URL>" : job.company}</code>{job.url && <a href={job.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-white hover:text-emerald-300">View role <ArrowRight className="h-4 w-4"/></a>}</div></article>)}</div>}<div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-5"><div className="flex gap-3"><Sparkles className="h-5 w-5 text-emerald-400"/><div><h2 className="font-semibold">Application kits are generated on demand</h2><p className="mt-1 text-sm text-slate-400">Select a match and run <Link href="/workflows" className="text-emerald-400 hover:underline">the /apply workflow</Link>. It uses your verified profile and never invents experience.</p></div></div></div></>
+}

@@ -59,6 +59,17 @@ files ready    with fit ratings     (LaTeX, tailored)
 
 The framework encodes career guidance best practices, including structured evaluation criteria, forward-looking cover letter framing, and optional salary benchmarking.
 
+## Web dashboard
+
+The repository also includes a Next.js operations dashboard in `app/`, with shared UI components in `components/`. It lives in the same project as the job-search workflows, so the command-line tools, candidate data, and web interface can evolve from one source tree.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Use `pnpm typecheck` and `pnpm build` to validate the dashboard.
+
 ## Prerequisites
 
 - [Claude Code](https://claude.com/claude-code) (CLI). Using a different agent tool (Codex, Antigravity, Gemini CLI)? Start at [`AGENTS.md`](AGENTS.md) - the portal search skills work there out of the box, and [community forks](https://github.com/MadsLorentzen/ai-job-search/discussions/78) adapt the full workflow.
