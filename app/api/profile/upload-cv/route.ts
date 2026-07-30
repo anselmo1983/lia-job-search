@@ -11,21 +11,36 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     
-    // Salvar na pasta documents/cv/
-    const fileName = `uploaded_${Date.now()}_${file.name}`
-    const filePath = path.join(process.cwd(), "documents", "cv", fileName)
-    await fs.writeFile(filePath, buffer)
+    // Salvar na pasta documents/cv/ (pode falhar em serverless)
+    let fileName = `uploaded_${Date.now()}_${file.name}`
+    let filePath = ""
+    try {
+      filePath = path.join(process.cwd(), "documents", "cv", fileName)
+      await fs.writeFile(filePath, buffer)
+    } catch (e) {
+      // Vercel serverless: fallback para /tmp
+      try {
+        filePath = path.join("/tmp", fileName)
+        await fs.writeFile(filePath, buffer)
+      } catch {}
+    }
     
-    // Extrair texto se for PDF
     let text = ""
     if (file.name.endsWith(".pdf")) {
       try {
-        const { PDFParse } = await import("pdf-parse")
-        const parser = new PDFParse(buffer)
-        const pageTexts = await parser.getText()
-        text = Array.isArray(pageTexts) ? pageTexts.join("\n") : String(pageTexts || "")
+        // Tentar extrair texto com pdf-parse (suporta PDF v2+)
+        const pdfModule = await import("pdf-parse")
+        // pdf-parse v2.x exporta PDFParse como named export
+        const PDFParse = pdfModule.PDFParse
+        if (PDFParse) {
+          const parser = new PDFParse(buffer)
+          const pageTexts = await parser.getText()
+          text = Array.isArray(pageTexts) ? pageTexts.join("\n") : String(pageTexts || "")
+        } else {
+          text = "[PDFParse não disponível]"
+        }
       } catch (e) {
-        text = "[Não foi possível extrair texto do PDF: " + String(e).substring(0, 100) + "]"
+        text = "[Não foi possível extrair texto do PDF]"
       }
     } else if (file.name.endsWith(".txt")) {
       text = buffer.toString("utf8")

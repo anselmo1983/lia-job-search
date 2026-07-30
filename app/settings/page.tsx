@@ -102,7 +102,7 @@ export default function SettingsPage() {
         </div>
         <form onSubmit={handleUpload} className="flex flex-col gap-3 sm:flex-row">
           <input className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-emerald-400/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-emerald-300 hover:file:bg-emerald-400/20" type="file" accept=".pdf,.docx,.txt" />
-          <Button disabled={uploading}>
+          <Button type="submit" disabled={uploading}>
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Upload
           </Button>

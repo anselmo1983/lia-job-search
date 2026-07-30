@@ -10,97 +10,79 @@
 
 @layer base {
   :root {
-    --font-sans: var(--font-geist-sans);
-    --font-mono: var(--font-geist-mono);
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --font-sans: "Inter", system-ui, sans-serif;
+    --font-heading: "Cabin", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+
+    /* ── Lia OS Brand Palette ── */
+    --abyss: 200 26% 7%;
+    --obsidian: 202 22% 14%;
+    --graphite: 202 12% 27%;
+    --teal: 186 46% 30%;
+    --teal-signal: 185 32% 43%;
+    --silver: 200 7% 68%;
+    --cloud: 90 2% 82%;
+    --mist: 150 8% 95%;
+
+    /* ── Semantic Tokens (Dark by default) ── */
+    --background: var(--abyss);
+    --foreground: var(--mist);
+    --card: var(--obsidian);
+    --card-foreground: var(--cloud);
+    --popover: var(--obsidian);
+    --popover-foreground: var(--cloud);
+
+    --primary: var(--teal);
+    --primary-foreground: var(--mist);
+    --secondary: var(--graphite);
+    --secondary-foreground: var(--silver);
+
+    --muted: 202 22% 12%;
+    --muted-foreground: var(--silver);
+    --accent: var(--teal-signal);
+    --accent-foreground: var(--mist);
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: var(--mist);
+    --success: 160 50% 35%;
+    --success-foreground: var(--mist);
+    --warning: 38 92% 50%;
+    --warning-foreground: var(--obsidian);
+    --info: 217 91% 60%;
+    --info-foreground: var(--mist);
+
+    --border: var(--graphite);
+    --input: var(--graphite);
+    --ring: var(--teal-signal);
+
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    --surface-raised: 0 0% 98%;
-    --surface-overlay: 0 0% 100%;
-    --border-subtle: 0 0% 85%;
-    --border-default: 0 0% 80%;
-    --border-emphasis: 0 0% 70%;
-    --success: 160 84% 39%;
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 9%;
-    --info: 217 91% 60%;
-    --info-foreground: 0 0% 98%;
-  }
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    --surface-raised: 222 14% 12%;
-    --surface-overlay: 222 14% 10%;
-    --border-subtle: 217 14% 18%;
-    --border-default: 217 14% 22%;
-    --border-emphasis: 217 14% 30%;
-    --success: 160 84% 39%;
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 9%;
-    --info: 217 91% 60%;
-    --info-foreground: 0 0% 98%;
+
+    /* ── Surface hierarchy ── */
+    --surface-raised: var(--obsidian);
+    --surface-overlay: 202 22% 12%;
+    --surface-sunken: 200 26% 5%;
+
+    /* ── Border hierarchy ── */
+    --border-subtle: 202 12% 20%;
+    --border-default: var(--graphite);
+    --border-emphasis: var(--teal-signal);
+
+    /* ── Sidebar ── */
+    --sidebar-background: 200 26% 5%;
+    --sidebar-foreground: var(--cloud);
+    --sidebar-primary: var(--teal);
+    --sidebar-primary-foreground: var(--mist);
+    --sidebar-accent: 202 22% 12%;
+    --sidebar-accent-foreground: var(--cloud);
+    --sidebar-border: 202 12% 18%;
+    --sidebar-ring: var(--teal-signal);
+
+    /* ── Charts ── */
+    --chart-1: var(--teal);
+    --chart-2: var(--teal-signal);
+    --chart-3: 186 46% 45%;
+    --chart-4: 185 32% 55%;
+    --chart-5: 200 7% 50%;
   }
 }
 
@@ -110,22 +92,23 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
   }
-  
-  /* FOUT prevention: hide text until fonts are loaded */
-  html.fonts-pending h1,
-  html.fonts-pending h2,
-  html.fonts-pending h3,
-  html.fonts-pending .font-semibold,
-  html.fonts-pending .font-bold {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  code, pre, kbd, samp {
+    font-family: var(--font-mono);
+  }
+
+  /* FOUT prevention: fade in headings only */
+  html.fonts-pending h1 {
     opacity: 0.001;
-    transition: opacity 0.5s ease-out;
+    transition: opacity 0.3s ease-out;
   }
-  html.fonts-ready h1,
-  html.fonts-ready h2,
-  html.fonts-ready h3,
-  html.fonts-ready .font-semibold,
-  html.fonts-ready .font-bold {
+  html.fonts-ready h1 {
     opacity: 1;
   }
 }
