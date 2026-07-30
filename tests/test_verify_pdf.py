@@ -66,6 +66,22 @@ class VerifyPdfTests(unittest.TestCase):
 
 
 class RunToolTests(unittest.TestCase):
+    @patch("tools.verify_pdf.subprocess.run")
+    def test_decodes_poppler_output_as_utf8_on_windows(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess(
+            ["pdftotext"], 0, stdout="Experiência — dados", stderr=""
+        )
+
+        self.assertEqual(run_tool(["pdftotext", "example.pdf", "-"]), "Experiência — dados")
+        mock_run.assert_called_once_with(
+            ["pdftotext", "example.pdf", "-"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
     @patch("tools.verify_pdf.subprocess.run", side_effect=FileNotFoundError)
     def test_reports_missing_poppler_command(self, _mock_run):
         with self.assertRaisesRegex(VerificationError, "install poppler-utils"):

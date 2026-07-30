@@ -19,6 +19,8 @@ def run_tool(command):
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         ).stdout
     except FileNotFoundError as exc:
         raise VerificationError(

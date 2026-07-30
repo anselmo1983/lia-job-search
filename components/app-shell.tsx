@@ -22,6 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
+      <a href="#main-content" className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg bg-emerald-400 px-4 py-2 font-semibold text-slate-950 transition focus:translate-y-0">Skip to main content</a>
       <aside className="border-b border-slate-800 bg-slate-900/80 lg:fixed lg:inset-y-0 lg:w-64 lg:border-b-0 lg:border-r">
         <div className="flex h-16 items-center gap-3 border-b border-slate-800 px-5">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-400 font-bold text-slate-950">L</div>
@@ -34,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
       </aside>
-      <main className="lg:pl-64"><div className="mx-auto max-w-7xl p-5 sm:p-8">{children}</div></main>
+      <main id="main-content" tabIndex={-1} className="lg:pl-64"><div className="mx-auto max-w-7xl p-5 sm:p-8">{children}</div></main>
     </div>
   )
 }

@@ -46,7 +46,7 @@ If you prefer a package manager, `winget install Oven-sh.Bun` also works on Wind
 
 Install a LaTeX distribution to compile the generated `.tex` files to PDF:
 
-- **Windows:** [MiKTeX](https://miktex.org/download)
+- **Windows:** [MiKTeX](https://miktex.org/download) or `winget install --id MiKTeX.MiKTeX --exact`
 - **macOS:** [MacTeX](https://tug.org/mactex/)
 - **Linux:** `sudo apt install texlive-full` or `sudo dnf install texlive-scheme-full`
 
@@ -147,7 +147,7 @@ Push-Location $SmokeDir; xelatex -interaction=nonstopmode -halt-on-error cover_s
 
 - **macOS:** `brew install poppler`
 - **Debian/Ubuntu:** `sudo apt install poppler-utils`
-- **Windows:** `choco install poppler`
+- **Windows:** `winget install --id oschwartz10612.Poppler --exact` (or `choco install poppler`)
 
 If `pdftotext` is missing, `/apply` skips the mechanical check with a warning and falls back to a visual keyword review — everything else works normally.
 
