@@ -20,11 +20,13 @@ export default function JobApplyModal({ job, onClose, onComplete }: { job: Job; 
     setError("")
     try {
       const apiKey = localStorage.getItem("lia-api-key") || ""
+      const provider = localStorage.getItem("lia-api-provider") || "openai"
+      const model = localStorage.getItem("lia-api-model") || ""
       if (!apiKey) { setError("Configure sua API key em Settings primeiro!"); setLoading(false); return }
       const res = await fetch("/api/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job, apiKey, provider: localStorage.getItem("lia-api-provider") || "openai" }),
+        body: JSON.stringify({ job, apiKey, provider, model }),
       })
       const data = await res.json()
       if (data.error) { setError(data.error); setLoading(false); return }

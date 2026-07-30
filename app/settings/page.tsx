@@ -9,6 +9,7 @@ const inputClass = "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 
 
 export default function SettingsPage() {
   const [apiProvider, setApiProvider] = useState<string>("openai")
+  const [apiModel, setApiModel] = useState<string>("gpt-4o-mini")
   const [apiKey, setApiKey] = useState("")
   const [saved, setSaved] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -20,13 +21,37 @@ export default function SettingsPage() {
   useEffect(() => {
     setApiKey(localStorage.getItem("lia-api-key") || "")
     setApiProvider(localStorage.getItem("lia-api-provider") || "openai")
+    setApiModel(localStorage.getItem("lia-api-model") || "gpt-4o-mini")
   }, [])
+
+  const modelsByProvider: Record<string, {value:string, label:string}[]> = {
+    openai: [
+      { value: "gpt-4o-mini", label: "GPT-4o-mini (rápido, custo baixo)" },
+      { value: "gpt-4o", label: "GPT-4o (máxima qualidade)" },
+    ],
+    anthropic: [
+      { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4 (balanceado)" },
+      { value: "claude-opus-4-20250514", label: "Claude Opus 4 (máxima qualidade)" },
+    ],
+    kimi: [
+      { value: "kimi-k3", label: "Kimi K3 (2.8T params, reasoning)" },
+      { value: "kimi-k2.7-code", label: "Kimi K2.7 Code (coding, ~180 tok/s)" },
+      { value: "kimi-k2.6", label: "Kimi K2.6 (256K context, baixo custo)" },
+    ],
+  }
 
   function saveApiKey() {
     localStorage.setItem("lia-api-key", apiKey)
     localStorage.setItem("lia-api-provider", apiProvider)
+    localStorage.setItem("lia-api-model", apiModel)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  function handleProviderChange(newProvider: string) {
+    setApiProvider(newProvider)
+    const models = modelsByProvider[newProvider] || []
+    setApiModel(models[0]?.value || "")
   }
 
   async function handleUpload(e: FormEvent<HTMLFormElement>) {
@@ -83,11 +108,15 @@ export default function SettingsPage() {
         </div>
         <p className="mb-4 text-sm text-slate-400">Necessária para avaliação de vagas, geração de currículos e cartas.</p>
         <div className="flex flex-col gap-3 sm:flex-row">
-          <select className={inputClass} value={apiProvider} onChange={e => setApiProvider(e.target.value)}>
+          <select className={inputClass} value={apiProvider} onChange={e => handleProviderChange(e.target.value)}>
             <option value="openai">OpenAI (GPT-4o-mini)</option>
             <option value="anthropic">Anthropic (Claude Sonnet)</option>
+            <option value="kimi">Kimi (Moonshot AI — K3 / K2.7 Code)</option>
           </select>
-          <input className={`${inputClass} flex-1 font-mono`} type="password" placeholder="sk-..." value={apiKey} onChange={e => setApiKey(e.target.value)} />
+          <select className={inputClass} value={apiModel} onChange={e => setApiModel(e.target.value)}>
+            {(modelsByProvider[apiProvider] || []).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+          <input className={`${inputClass} flex-1 font-mono`} type="password" placeholder={apiProvider === "kimi" ? "sk-... (Moonshot API Key)" : "sk-..."} value={apiKey} onChange={e => setApiKey(e.target.value)} />
           <Button onClick={saveApiKey}>
             {saved ? <><Check className="h-4 w-4" /> Salvo</> : <><Save className="h-4 w-4" /> Salvar</>}
           </Button>
