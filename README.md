@@ -379,6 +379,48 @@ Thinking about a PR? Read [CONTRIBUTING.md](CONTRIBUTING.md) first - it explains
 - [Mikkel Krogholm](https://github.com/mikkelkrogsholm) ([skills repo](https://github.com/mikkelkrogsholm/skills)) for the job search CLI skills
 - Built with [Claude Code](https://claude.com/claude-code) by [Anthropic](https://anthropic.com)
 
+## Web Dashboard (Next.js UI)
+
+O LIA agora inclui uma **Web UI completa** construída com Next.js 15:
+
+```bash
+# Iniciar servidor de desenvolvimento
+pnpm dev
+# Acessar em http://localhost:3000
+
+# Build de produção
+pnpm build
+pnpm start
+```
+
+### Páginas disponíveis
+
+| Rota | Descrição |
+|------|-----------|
+| `/` | Dashboard com visão geral do workspace |
+| `/fill-ups` | AI Fill-Ups: vagas ranqueadas com kits prontos |
+| `/jobs` | Vagas encontradas nos portais |
+| `/applications` | Pipeline de candidaturas do tracker |
+| `/network` | Network Tracker (armazenamento local) |
+| `/tasks` | Task Tracker (armazenamento local) |
+| `/resumes` | Templates de currículo e cartas |
+| `/statistics` | Estatísticas e pipeline visual |
+| `/calendar` | Calendário de entrevistas |
+| `/workflows` | Documentação dos comandos |
+| `/documents` | Inventário de documentos locais |
+
+### Funcionalidades da Web UI
+
+- **Leitura direta** dos arquivos do workspace (`job_search_tracker.csv`, `job_scraper/seen_jobs.json`)
+- **Trackers locais** (Network, Tasks, Interviews) salvos no navegador
+- **Design responsivo** com suporte a tema escuro
+- **100% privado** — dados nunca saem do seu computador
+- **Integração com o workflow AI** — comandos Claude Code documentados na UI
+
+## Benchmark vs. Mercado
+
+Veja [BENCHMARK.md](./BENCHMARK.md) para uma comparação detalhada com Huntr, Simplify.jobs, Teal, Jobscan e outras ferramentas do mercado.
+
 ## License
 
 MIT

@@ -83,6 +83,19 @@ This repo is a job application workspace. Claude acts as a career advisor and ap
 - `cover_letters/` - LaTeX cover letters (custom cover.cls template)
 - `.claude/skills/` - AI skill definitions for the application workflow
 - `.agents/skills/` - Job search CLI tools
+- `app/` - Next.js 15 Web UI pages
+- `components/` - React components (shadcn/ui + custom)
+- `lib/` - Server-side data layer (job-data.ts, utils)
+- `job_scraper/` - Scraped job data (seen_jobs.json)
+- `job_search_tracker.csv` - Canonical application tracker
+
+## Web UI (Next.js)
+The project includes a fully functional Web UI. Run with:
+- `pnpm dev` - Development server (http://localhost:3000)
+- `pnpm build` - Production build
+- `pnpm start` - Start production server
+
+The dashboard reads `job_search_tracker.csv` and `job_scraper/seen_jobs.json` directly. Trackers (network, tasks, interviews) use browser localStorage.
 
 ## Workflow for New Job Applications
 1. User provides a job posting (URL or text)
