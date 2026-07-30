@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart3, BriefcaseBusiness, CalendarDays, FileText, LayoutDashboard, ListTodo, Sparkles, Users, Workflow } from "lucide-react"
+import { BarChart3, BriefcaseBusiness, CalendarDays, FileText, LayoutDashboard, ListTodo, Settings, Sparkles, Users, Workflow } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navigation = [
@@ -16,6 +16,7 @@ const navigation = [
   { href: "/statistics", label: "Statistics", icon: BarChart3 },
   { href: "/calendar", label: "Interviews", icon: CalendarDays },
   { href: "/workflows", label: "Workflows", icon: Workflow },
+  { href: "/settings", label: "Settings", icon: Settings },
 ]
 
 export function AppShell({ children }: { children: React.ReactNode }) {

@@ -45,6 +45,17 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --surface-raised: 0 0% 98%;
+    --surface-overlay: 0 0% 100%;
+    --border-subtle: 0 0% 85%;
+    --border-default: 0 0% 80%;
+    --border-emphasis: 0 0% 70%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 9%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 98%;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -79,6 +90,17 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --surface-raised: 222 14% 12%;
+    --surface-overlay: 222 14% 10%;
+    --border-subtle: 217 14% 18%;
+    --border-default: 217 14% 22%;
+    --border-emphasis: 217 14% 30%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 9%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 98%;
   }
 }
 
@@ -88,5 +110,22 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* FOUT prevention: hide text until fonts are loaded */
+  html.fonts-pending h1,
+  html.fonts-pending h2,
+  html.fonts-pending h3,
+  html.fonts-pending .font-semibold,
+  html.fonts-pending .font-bold {
+    opacity: 0.001;
+    transition: opacity 0.5s ease-out;
+  }
+  html.fonts-ready h1,
+  html.fonts-ready h2,
+  html.fonts-ready h3,
+  html.fonts-ready .font-semibold,
+  html.fonts-ready .font-bold {
+    opacity: 1;
   }
 }
