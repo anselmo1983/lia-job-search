@@ -1,45 +1,62 @@
 import { NextResponse } from "next/server"
+import { completeJson, getDefaultModel } from "@/lib/inference/bifrost"
+
+// CT223 — extração de perfil. Arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
+// Nenhuma credencial vem do cliente; o Bifrost (CT109) é a autoridade de inferência.
+
+const MIN_PROFILE_CHARS = 200
+const MAX_PROFILE_CHARS = 8000
+
+const SYSTEM_PROMPT = `Extraia um perfil profissional estruturado deste currículo.
+Retorne APENAS JSON com a seguinte estrutura:
+{
+  "name": string,
+  "email": string,
+  "phone": string,
+  "location": string,
+  "languages": string[],
+  "education": [{"degree","field","institution","year"}],
+  "experience": [{"title","company","period","achievements": string[]}],
+  "skills": {"primary": string[], "secondary": string[]},
+  "certifications": [{"name","year"}],
+  "linkedin": string
+}
+Se um campo não existir no currículo, use string vazia ou array vazio. Não invente informações.`
 
 export async function POST(request: Request) {
   try {
-    const { text, apiKey, provider = "openai", model } = await request.json()
-    if (!apiKey) return NextResponse.json({ error: "API key é necessária" }, { status: 400 })
-
-    let extractedProfile: any
-
-    if (provider === "anthropic") {
-      const Anthropic = (await import("@anthropic-ai/sdk")).default
-      const anthropic = new Anthropic({ apiKey })
-      const response = await anthropic.messages.create({
-        model: model || "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        messages: [{ role: "user", content: `Extraia um perfil profissional estruturado. Retorne APENAS JSON com: {name, email, phone, location, languages, education: [{degree, field, institution, year}], experience: [{title, company, period, achievements:[string]}], skills: {primary:[], secondary:[]}, certifications:[{name, year}]}\n\nCurrículo:\n${text}` }]
-      })
-      const content = response.content[0]
-      if (content.type === 'text') {
-        const jsonMatch = content.text.match(/\{[\s\S]*\}/)
-        extractedProfile = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: "Falha ao extrair JSON" }
-      }
-    } else {
-      // OpenAI ou Kimi (OpenAI-compatible)
-      const OpenAI = (await import("openai")).default
-      const baseURL = provider === "kimi" ? "https://api.moonshot.ai/v1" : undefined
-      const openai = new OpenAI({ apiKey, baseURL })
-      const m = model || (provider === "kimi" ? "kimi-k2.6" : "gpt-4o-mini")
-
-      const response = await openai.chat.completions.create({
-        model: m,
-        messages: [
-          { role: "system", content: "Extraia um perfil profissional estruturado deste currículo. Retorne JSON com: name, email, phone, location, languages, education (array de {degree, field, institution, year}), experience (array de {title, company, period, achievements}), skills (primary[], secondary[]), certifications[], linkedin" },
-          { role: "user", content: text }
-        ],
-        response_format: { type: "json_object" }
-      })
-      extractedProfile = JSON.parse(response.choices[0].message.content || "{}")
+    const { text } = await request.json()
+    if (!text || typeof text !== "string") {
+      return NextResponse.json({ error: "Texto do currículo é obrigatório." }, { status: 400 })
     }
 
-    return NextResponse.json({ profile: extractedProfile })
+    const trimmed = text.trim()
+    if (trimmed.length < MIN_PROFILE_CHARS) {
+      return NextResponse.json(
+        {
+          error: `Texto muito curto para extração (${trimmed.length} caracteres). O mínimo é ${MIN_PROFILE_CHARS} caracteres.`,
+        },
+        { status: 422 },
+      )
+    }
+
+    const profile = await completeJson({
+      model: getDefaultModel(),
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: `Currículo:\n${trimmed.substring(0, MAX_PROFILE_CHARS)}` }],
+      maxTokens: 2500,
+    })
+
+    if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+      return NextResponse.json(
+        { error: "Não foi possível extrair um perfil válido do currículo." },
+        { status: 422 },
+      )
+    }
+
+    return NextResponse.json({ profile })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    const message = error instanceof Error ? error.message : "Erro ao extrair perfil"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

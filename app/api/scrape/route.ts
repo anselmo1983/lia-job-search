@@ -46,7 +46,7 @@ function isPortalEnabled(skillName: string): boolean {
   return !/^enabled:\s*false\b/m.test(content)
 }
 
-function runClijson(portal: Portal, query: string, location: string): Record<string, unknown>[] {
+function runClijson(portal: Portal, query: string, location: string): { results: Record<string, unknown>[]; failed: boolean } {
   const args = ["run", portal.cliPath, "search", ...portal.buildArgs(query, location), "--format", "json"]
   const result = spawnSync("bun", args, {
     cwd: process.cwd(),
@@ -56,12 +56,12 @@ function runClijson(portal: Portal, query: string, location: string): Record<str
     // directly for clean signal handling.
     shell: process.platform === "win32",
   })
-  if (result.error || result.status !== 0) return []
+  if (result.error || result.status !== 0) return { results: [], failed: true }
   try {
     const parsed = JSON.parse(result.stdout)
-    return (parsed?.results ?? []) as Record<string, unknown>[]
+    return { results: (parsed?.results ?? []) as Record<string, unknown>[], failed: false }
   } catch {
-    return []
+    return { results: [], failed: true }
   }
 }
 
@@ -276,9 +276,6 @@ export async function POST(request: Request) {
     const body: {
       query?: string
       location?: string
-      apiKey?: string
-      provider?: string
-      model?: string
     } = await request.json()
 
     const query = (body.query ?? "").trim()
@@ -291,10 +288,15 @@ export async function POST(request: Request) {
     // --- Collect results from all enabled portals ---------------------------
     const allJobs: JobResult[] = []
     const seenUrls = new Set<string>()
+    const diagnostics: { portal: string; enabled: boolean; failed: boolean; returned: number }[] = []
 
     for (const portal of PORTALS) {
-      if (!isPortalEnabled(portal.name)) continue
-      const rawResults = runClijson(portal, query, location)
+      if (!isPortalEnabled(portal.name)) {
+        diagnostics.push({ portal: portal.name, enabled: false, failed: false, returned: 0 })
+        continue
+      }
+      const { results: rawResults, failed } = runClijson(portal, query, location)
+      let returned = 0
       for (const raw of rawResults) {
         const job = portal.normalize(raw, portal.name)
         if (!job) continue
@@ -304,75 +306,17 @@ export async function POST(request: Request) {
         if (seenUrls.has(key)) continue
         seenUrls.add(key)
         allJobs.push(job)
+        returned++
       }
+      diagnostics.push({ portal: portal.name, enabled: true, failed, returned })
     }
 
-    // If no CLI results at all, try LLM as last-resort fallback
-    if (allJobs.length === 0 && body.apiKey) {
-      return await llmFallback(body.apiKey, body.provider, body.model, query, location)
-    }
-
-    return NextResponse.json({ results: allJobs })
+    // Bifrost NÃO é fonte de vagas: zero resultados → results: [] + diagnostics.
+    // É proibido produzir JobResult originado de LLM.
+    return NextResponse.json({ results: allJobs, sourceDiagnostics: diagnostics })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
 
-// ---------------------------------------------------------------------------
-// LLM fallback – only used when NO CLI returned results AND an API key was
-// provided. Returns a stub result set with a notice in the description.
-// ---------------------------------------------------------------------------
-async function llmFallback(
-  apiKey: string,
-  provider: string | undefined,
-  model: string | undefined,
-  query: string,
-  location: string,
-): Promise<Response> {
-  try {
-    // Dynamic import so the OpenAI dependency is not loaded unless needed
-    const { default: OpenAI } = await import("openai")
-    const baseURL = provider === "kimi" ? "https://api.moonshot.ai/v1" : undefined
-    const openai = new OpenAI({ apiKey, baseURL })
-    const m = model || (provider === "kimi" ? "kimi-k2.6" : "gpt-4o-mini")
 
-    const response = await openai.chat.completions.create({
-      model: m,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Você é um buscador de vagas. Retorne JSON: {results: [{title, company, location, url, description, date, source}]}. " +
-            "AVISO: Os portais de vagas reais não retornaram resultados. " +
-            "Se não conhecer vagas reais, retorne results vazio.",
-        },
-        {
-          role: "user",
-          content: `Busque vagas para "${query}" em "${location || "Brasil"}". Retorne apenas se conhecer vagas reais.`,
-        },
-      ],
-      response_format: { type: "json_object" },
-    })
-
-    const result = JSON.parse(response.choices[0].message.content || "{}")
-
-    return NextResponse.json({
-      results: (result.results || []).map((r: Record<string, unknown>, i: number) => ({
-        id: `llm_${Date.now()}_${i}`,
-        title: r.title ?? "",
-        company: r.company ?? null,
-        location: r.location ?? null,
-        url: r.url ?? "",
-        description: `[AVISO GERADO POR IA — nenhum portal de vagas retornou resultados para "${query}"] ${r.description ?? ""}`,
-        date: r.date ? String(r.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
-        source: r.source ?? "llm",
-        status: "discovered",
-        fit: "unrated",
-        score: null,
-      })),
-      warning: "Nenhum portal de vagas retornou resultados. As vagas acima foram geradas por IA e podem não ser reais.",
-    })
-  } catch (error) {
-    return NextResponse.json({ results: [], warning: `Fallback LLM também falhou: ${String(error)}` })
-  }
-}

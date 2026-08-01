@@ -29,11 +29,9 @@ export default function JobsPage() {
   const [ranking, setRanking] = useState(false)
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [showApply, setShowApply] = useState(false)
-  const [apiKey, setApiKey] = useState("")
   const [searchResults, setSearchResults] = useState<Job[]>([])
 
   useEffect(() => {
-    setApiKey(localStorage.getItem("lia-api-key") || "")
     loadJobs()
   }, [])
 
@@ -50,14 +48,13 @@ export default function JobsPage() {
   }
 
   async function scrapeJobs() {
-    if (!apiKey) return alert("Configure sua API key em Settings primeiro!")
     setScraping(true)
     setSearchResults([])
     try {
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery || "desenvolvedor", location: searchLocation, apiKey }),
+        body: JSON.stringify({ query: searchQuery || "desenvolvedor", location: searchLocation }),
       })
       const data = await res.json()
       if (data.results) {
@@ -78,13 +75,12 @@ export default function JobsPage() {
   }
 
   async function rankJobs() {
-    if (!apiKey) return alert("Configure sua API key em Settings primeiro!")
     setRanking(true)
     try {
       await fetch("/api/jobs/rank", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobs, apiKey, provider: "openai" }),
+        body: JSON.stringify({ jobs }),
       })
       await loadJobs()
     } catch (err) {

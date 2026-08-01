@@ -1,128 +1,162 @@
 import { NextResponse } from "next/server"
+import { completeJson, getDefaultModel } from "@/lib/inference/bifrost"
+
+// CT223 — batch de vagas. Arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
+// Nenhum provider direto (Moonshot/OpenAI/Anthropic). Provider/model routing
+// pertence ao Bifrost — o cliente não envia modelo.
+//
+// Processamento é SEQUENCIAL por enquanto (não há batch nativo do Moonshot).
+// O estado do lote é mantido em memória do processo (perdido ao reiniciar o
+// servidor) — adequado ao deployment canônico (servidor de longa duração).
+
+interface BatchJob {
+  id: string
+  title: string
+  company?: string
+  description?: string
+  url?: string
+  location?: string
+}
+
+interface BatchItem {
+  id: string
+  title: string
+  company: string
+  evaluation?: unknown
+  error?: string
+}
+
+interface BatchEntry {
+  batchId: string
+  status: "in_progress" | "completed" | "failed"
+  totalJobs: number
+  requestCounts: { total: number; completed: number; failed: number }
+  results: BatchItem[]
+  createdAt: number
+}
+
+const batches = new Map<string, BatchEntry>()
+const MAX_BATCH_JOBS = 25
+const BATCH_TTL_MS = 24 * 60 * 60 * 1000 // 24h
+
+function pruneBatches() {
+  const now = Date.now()
+  for (const [id, entry] of batches) {
+    if (now - entry.createdAt > BATCH_TTL_MS) batches.delete(id)
+  }
+}
+
+const SYSTEM_PROMPT = `Você é um analista de vagas. Para cada vaga, avalie o fit com o perfil do candidato.
+Retorne APENAS JSON com a estrutura:
+{
+  "fitScore": 0-100,
+  "verdict": string,
+  "strengths": [string],
+  "gaps": [string],
+  "recommendation": string
+}
+Se a descrição da vaga não permitir avaliar, use fitScore 0 e explique no verdict.`
+
+async function processBatch(batchId: string, jobs: BatchJob[]) {
+  const entry = batches.get(batchId)
+  if (!entry) return
+
+  for (const job of jobs) {
+    const item = entry.results.find((r) => r.id === job.id)
+    try {
+      const evaluation = await completeJson({
+        model: getDefaultModel(),
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: `Avalie esta vaga e retorne o fit:
+Título: ${job.title}
+Empresa: ${job.company || "N/A"}
+Local: ${job.location || "N/A"}
+Descrição: ${job.description || "N/A"}
+URL: ${job.url || "N/A"}`,
+          },
+        ],
+        maxTokens: 2000,
+      })
+      if (item) {
+        item.evaluation = evaluation
+        item.error = undefined
+      }
+      entry.requestCounts.completed++
+    } catch (e) {
+      if (item) item.error = e instanceof Error ? e.message : String(e)
+      entry.requestCounts.failed++
+    }
+  }
+
+  entry.status = entry.requestCounts.failed === entry.totalJobs ? "failed" : "completed"
+}
 
 export async function POST(request: Request) {
   try {
-    const { apiKey, jobs, model = "kimi-k2.6" } = await request.json()
-    if (!apiKey) return NextResponse.json({ error: "API key necessária" }, { status: 400 })
-    if (!jobs?.length) return NextResponse.json({ error: "Lista de vagas vazia" }, { status: 400 })
-
-    const OpenAI = (await import("openai")).default
-    const client = new OpenAI({ apiKey, baseURL: "https://api.moonshot.ai/v1" })
-
-    // 1. Build JSONL input file in memory
-    const lines = jobs.map((job: any, i: number) => JSON.stringify({
-      custom_id: `job_${i}`,
-      method: "POST",
-      url: "/v1/chat/completions",
-      body: {
-        model,
-        messages: [
-          {
-            role: "system",
-            content: `Você é um analista de vagas. Para cada vaga, avalie o fit com o perfil do candidato.
-Retorne JSON: {fitScore:0-100, verdict, strengths:[string], gaps:[string], recommendation}
-Depois gere um currículo adaptado em Markdown e uma carta de apresentação.`
-          },
-          {
-            role: "user",
-            content: `Avalie esta vaga e gere documentos:
-Título: ${job.title}
-Empresa: ${job.company}
-Local: ${job.location || "N/A"}
-Descrição: ${job.description || "N/A"}
-URL: ${job.url || "N/A"}`
-          }
-        ]
-      }
-    }))
-
-    const jsonlContent = lines.join("\n")
-
-    // 2. Upload file to Moonshot
-    const blob = new Blob([jsonlContent], { type: "application/jsonl" })
-    const file = new File([blob], `batch_${Date.now()}.jsonl`, { type: "application/jsonl" })
-
-    // Usar fetch diretamente para upload de arquivo
-    const formData = new FormData()
-    formData.append("purpose", "batch")
-    formData.append("file", file)
-
-    const uploadRes = await fetch("https://api.moonshot.ai/v1/files", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}` },
-      body: formData
-    })
-
-    if (!uploadRes.ok) {
-      const errText = await uploadRes.text()
-      return NextResponse.json({ error: `Upload failed: ${errText}` }, { status: 500 })
+    const { jobs } = await request.json()
+    if (!Array.isArray(jobs) || jobs.length === 0) {
+      return NextResponse.json({ error: "Lista de vagas vazia" }, { status: 400 })
+    }
+    if (jobs.length > MAX_BATCH_JOBS) {
+      return NextResponse.json({ error: `Máximo de ${MAX_BATCH_JOBS} vagas por lote (sequencial)` }, { status: 400 })
     }
 
-    const fileData = await uploadRes.json()
-    const fileId = fileData.id
+    pruneBatches()
 
-    // 3. Create batch task
-    const batchRes = await fetch("https://api.moonshot.ai/v1/batches", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        input_file_id: fileId,
-        endpoint: "/v1/chat/completions",
-        completion_window: "24h"
-      })
-    })
-
-    if (!batchRes.ok) {
-      const errText = await batchRes.text()
-      return NextResponse.json({ error: `Batch creation failed: ${errText}` }, { status: 500 })
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const entry: BatchEntry = {
+      batchId,
+      status: "in_progress",
+      totalJobs: jobs.length,
+      requestCounts: { total: jobs.length, completed: 0, failed: 0 },
+      results: jobs.map((j: BatchJob) => ({
+        id: j.id || `job_${Math.random().toString(36).slice(2, 8)}`,
+        title: j.title || "(sem título)",
+        company: j.company || "",
+      })),
+      createdAt: Date.now(),
     }
+    batches.set(batchId, entry)
 
-    const batchData = await batchRes.json()
+    // Processamento em segundo plano (sequencial via Bifrost)
+    void processBatch(batchId, jobs as BatchJob[])
 
     return NextResponse.json({
       success: true,
-      batchId: batchData.id,
-      fileId,
-      status: batchData.status,
-      totalJobs: jobs.length,
-      estimatedSavings: "40% vs. chamadas individuais"
+      batchId,
+      status: entry.status,
+      totalJobs: entry.totalJobs,
+      requestCounts: entry.requestCounts,
     })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
 
-// GET: consultar status de um batch
+// GET: consultar status de um batch (estado em memória)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const batchId = searchParams.get("batchId")
-    const apiKey = searchParams.get("apiKey")
-    
-    if (!batchId || !apiKey) {
-      return NextResponse.json({ error: "batchId e apiKey são necessários" }, { status: 400 })
+    if (!batchId) return NextResponse.json({ error: "batchId é necessário" }, { status: 400 })
+
+    const entry = batches.get(batchId)
+    if (!entry) {
+      return NextResponse.json(
+        { error: "Batch não encontrado — o estado é mantido em memória e foi perdido (servidor reiniciou?)" },
+        { status: 404 },
+      )
     }
 
-    const res = await fetch(`https://api.moonshot.ai/v1/batches/${batchId}`, {
-      headers: { "Authorization": `Bearer ${apiKey}` }
-    })
-
-    if (!res.ok) {
-      return NextResponse.json({ error: "Falha ao consultar batch" }, { status: 500 })
-    }
-
-    const data = await res.json()
     return NextResponse.json({
-      batchId: data.id,
-      status: data.status,
-      requestCounts: data.request_counts,
-      outputFileId: data.output_file_id,
-      errorFileId: data.error_file_id,
-      createdAt: data.created_at,
-      completedAt: data.completed_at
+      batchId: entry.batchId,
+      status: entry.status,
+      totalJobs: entry.totalJobs,
+      requestCounts: entry.requestCounts,
+      results: entry.results,
     })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })

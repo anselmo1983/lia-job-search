@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Package, Loader2, CheckCircle, AlertCircle, Clock, ExternalLink, Download, Plus, Trash2 } from "lucide-react"
+import { Package, Loader2, CheckCircle, AlertCircle, Clock, ExternalLink, Plus, Trash2 } from "lucide-react"
 import { PageHeader } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 
@@ -21,13 +21,10 @@ type BatchStatus = {
   status: string
   totalJobs?: number
   requestCounts?: { total: number; completed: number; failed: number }
-  outputFileId?: string
-  errorFileId?: string
-  estimatedSavings?: string
+  results?: { id: string; title: string; company: string; evaluation?: any; error?: string }[]
 }
 
 export default function BatchPage() {
-  const [apiKey, setApiKey] = useState("")
   const [batchJobs, setBatchJobs] = useState<BatchJob[]>([])
   const [batchStatus, setBatchStatus] = useState<BatchStatus | null>(null)
   const [loading, setLoading] = useState(false)
@@ -36,7 +33,6 @@ export default function BatchPage() {
   const [newJob, setNewJob] = useState({ title: "", company: "", url: "" })
 
   useEffect(() => {
-    setApiKey(localStorage.getItem("lia-api-key") || "")
     loadJobs()
   }, [])
 
@@ -67,7 +63,6 @@ export default function BatchPage() {
   }
 
   async function submitBatch() {
-    if (!apiKey) return setError("Configure sua API key em Settings primeiro!")
     if (batchJobs.length === 0) return setError("Adicione ao menos uma vaga ao lote!")
     
     setLoading(true)
@@ -78,7 +73,7 @@ export default function BatchPage() {
       const res = await fetch("/api/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey, jobs: batchJobs, model: "kimi-k2.6" })
+        body: JSON.stringify({ jobs: batchJobs })
       })
       const data = await res.json()
       if (data.error) { setError(data.error); setLoading(false); return }
@@ -96,11 +91,11 @@ export default function BatchPage() {
     setPolling(true)
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/batch?batchId=${batchId}&apiKey=${encodeURIComponent(apiKey)}`)
+        const res = await fetch(`/api/batch?batchId=${encodeURIComponent(batchId)}`)
         const data = await res.json()
         setBatchStatus(prev => ({ ...prev, ...data }))
         
-        if (["completed", "failed", "expired", "cancelled"].includes(data.status)) {
+        if (["completed", "failed"].includes(data.status)) {
           clearInterval(interval)
           setPolling(false)
         }
@@ -112,35 +107,29 @@ export default function BatchPage() {
   }
 
   const statusIcon: Record<string, any> = {
-    validating: <Clock className="h-5 w-5 text-amber-400" />,
     in_progress: <Loader2 className="h-5 w-5 animate-spin text-teal" />,
     completed: <CheckCircle className="h-5 w-5 text-emerald-400" />,
     failed: <AlertCircle className="h-5 w-5 text-red-400" />,
-    finalizing: <Loader2 className="h-5 w-5 animate-spin text-teal" />,
-    expired: <AlertCircle className="h-5 w-5 text-red-400" />,
-    cancelled: <AlertCircle className="h-5 w-5 text-slate-400" />,
   }
 
   return (
     <>
       <PageHeader
         title="Batch Processing"
-        description="Processe múltiplas vagas em lote via Kimi Batch API — economia de 40% vs. chamadas individuais. Suporta até 100MB por arquivo."
+        description="Processe múltiplas vagas em lote via Bifrost (CT109) — processamento sequencial em segundo plano."
       />
 
-      {/* Pricing Notice */}
-      {apiKey && (
-        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-teal/20 bg-teal/5 p-4">
+      {/* Notice */}
+      <div className="mb-6 flex items-start gap-3 rounded-2xl border border-teal/20 bg-teal/5 p-4">
           <Package className="mt-0.5 h-5 w-5 shrink-0 text-teal" />
           <div>
-            <p className="text-sm font-semibold text-cloud">Batch API — 40% mais econômico</p>
+            <p className="text-sm font-semibold text-cloud">Batch via Bifrost (CT109)</p>
             <p className="mt-1 text-xs text-silver">
-              Use o modelo <strong>kimi-k2.6</strong> para processar {batchJobs.length} vagas em lote. 
-              O batch é processado em até 24h. Você pode acompanhar o status em tempo real.
+              O lote é processado em segundo plano, sequencialmente, com inferência do CT109. 
+              Nenhuma chave é necessária no navegador — as credenciais ficam no servidor.
             </p>
           </div>
         </div>
-      )}
 
       {/* Job List */}
       <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -179,13 +168,13 @@ export default function BatchPage() {
 
         {/* Submit */}
         <div className="mt-4 flex items-center gap-3">
-          <Button onClick={submitBatch} disabled={loading || batchJobs.length === 0 || !apiKey}>
+          <Button onClick={submitBatch} disabled={loading || batchJobs.length === 0}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
             {loading ? "Criando batch..." : `Processar ${batchJobs.length} vagas em lote`}
           </Button>
           {batchJobs.length > 0 && (
             <span className="text-xs text-silver">
-              ~40% economia · até 24h · modelo kimi-k2.6
+              sequencial · via Bifrost (CT109)
             </span>
           )}
         </div>
@@ -223,16 +212,30 @@ export default function BatchPage() {
             </div>
           </div>
 
-          {batchStatus.status === "completed" && (
-            <div className="mt-4 flex gap-3">
-              <a
-                href={`https://api.moonshot.ai/v1/files/${batchStatus.outputFileId}/content`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-teal-signal"
-              >
-                <Download className="h-4 w-4" /> Baixar Resultados
-              </a>
+          {(batchStatus.status === "completed" || batchStatus.status === "failed") && batchStatus.results && (
+            <div className="mt-4">
+              <p className="mb-2 text-sm text-silver">Resultados por vaga</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {batchStatus.results.map((r) => (
+                  <div key={r.id} className="rounded-lg bg-slate-950 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-cloud">{r.title}</p>
+                        {r.company && <p className="truncate text-xs text-silver">{r.company}</p>}
+                      </div>
+                      {r.error ? (
+                        <span className="shrink-0 text-xs text-red-400">Falhou</span>
+                      ) : (
+                        <span className="shrink-0 text-sm font-bold text-emerald-400">{r.evaluation?.fitScore ?? "—"}%</span>
+                      )}
+                    </div>
+                    {r.error && <p className="mt-1 text-xs text-red-400">{r.error}</p>}
+                    {!r.error && r.evaluation?.verdict && (
+                      <p className="mt-1 line-clamp-2 text-xs text-slate-400">{r.evaluation.verdict}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </section>

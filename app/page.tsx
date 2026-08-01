@@ -8,11 +8,14 @@ import { PageHeader } from "@/components/app-shell"
 export default function DashboardPage() {
   const [summary, setSummary] = useState({ jobs: 0, applications: 0, open: 0, documents: 0, cvs: 0, letters: 0 })
   const [loading, setLoading] = useState(true)
-  const [apiKey, setApiKey] = useState("")
+  const [bifrost, setBifrost] = useState<{ connected: boolean } | null>(null)
 
   useEffect(() => {
-    setApiKey(localStorage.getItem("lia-api-key") || "")
     loadSummary()
+    fetch("/api/inference/status")
+      .then((r) => r.json())
+      .then((d) => setBifrost({ connected: Boolean(d?.connected) }))
+      .catch(() => setBifrost({ connected: false }))
   }, [])
 
   async function loadSummary() {
@@ -41,17 +44,18 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
+  const bifrostConnected = bifrost?.connected ?? false
   const cards = [
     { label: "Vagas encontradas", value: summary.jobs, icon: Radar, href: "/jobs", color: "text-emerald-400" },
     { label: "Candidaturas", value: summary.applications, icon: BriefcaseBusiness, href: "/applications", color: "text-blue-400" },
     { label: "Processos abertos", value: summary.open, icon: FileCheck2, href: "/applications", color: "text-amber-400" },
-    { label: "API Key", value: apiKey ? "✅ Configurada" : "❌ Pendente", icon: SettingsIcon, href: "/settings", color: apiKey ? "text-emerald-400" : "text-red-400" },
+    { label: "Inferência (Bifrost)", value: bifrost ? (bifrostConnected ? "Conectado" : "Desconectado") : "Verificando...", icon: SettingsIcon, href: "/settings", color: bifrost ? (bifrostConnected ? "text-emerald-400" : "text-red-400") : "text-slate-400" },
   ]
 
   const quickActions = [
     { label: "Buscar vagas", href: "/jobs", icon: Search, desc: "Encontre vagas no Brasil usando IA" },
     { label: "Upload de currículo", href: "/settings", icon: Upload, desc: "Envie seu PDF para extrair o perfil" },
-    { label: "Configurar API", href: "/settings", icon: SettingsIcon, desc: "Chave necessária para todas as funcionalidades" },
+    { label: "Status da inferência", href: "/settings", icon: SettingsIcon, desc: "Autoridade de inferência: CT109 Bifrost (server-side)" },
     { label: "Ver candidaturas", href: "/applications", icon: BriefcaseBusiness, desc: "Acompanhe o pipeline de aplicações" },
   ]
 
@@ -78,7 +82,7 @@ export default function DashboardPage() {
               {typeof value === "number" ? (
                 <p className="mt-6 text-3xl font-bold">{value}</p>
               ) : (
-                <p className={`mt-6 text-sm font-semibold ${apiKey ? "text-emerald-400" : "text-red-400"}`}>{value}</p>
+                <p className={`mt-6 text-sm font-semibold ${color}`}>{value}</p>
               )}
               <p className="mt-1 text-sm text-slate-400">{label}</p>
             </Link>
@@ -137,19 +141,19 @@ export default function DashboardPage() {
           <ol className="mt-4 space-y-3 text-sm text-slate-400">
             <li className="flex items-center gap-2">
               <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-xs font-bold text-emerald-300">1</span>
-              <Link href="/settings" className="text-emerald-400 hover:underline">Configurar API key</Link> em Settings
+              <Link href="/settings" className="text-emerald-400 hover:underline">Upload do currículo</Link> em Settings para extrair o perfil
             </li>
             <li className="flex items-center gap-2">
               <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-xs font-bold text-emerald-300">2</span>
-              <Link href="/settings" className="text-emerald-400 hover:underline">Upload do currículo</Link> para extrair perfil
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-xs font-bold text-emerald-300">3</span>
               <Link href="/jobs" className="text-emerald-400 hover:underline">Buscar vagas</Link> e classificar por fit
             </li>
             <li className="flex items-center gap-2">
-              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-xs font-bold text-emerald-300">4</span>
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-xs font-bold text-emerald-300">3</span>
               Aplicar para vagas com documentos gerados automaticamente
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-xs font-bold text-emerald-300">4</span>
+              <Link href="/settings" className="text-emerald-400 hover:underline">Verificar o status do Bifrost</Link> (CT109) em Settings
             </li>
           </ol>
         </div>
