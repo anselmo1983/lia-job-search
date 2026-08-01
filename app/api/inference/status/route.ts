@@ -19,8 +19,8 @@ export async function GET() {
       connected: false,
       authority: "CT109 Bifrost",
       credentialMode: "server-side",
-      defaultModel: "—",
-      reviewModel: "—",
+      defaultModel: "Not configured",
+      reviewModel: "Not configured",
     })
   }
 }

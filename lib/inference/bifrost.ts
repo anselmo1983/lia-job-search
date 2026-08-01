@@ -63,12 +63,14 @@ export function isConfigured(): boolean {
   return Boolean(process.env.BIFROST_BASE_URL && process.env.BIFROST_VIRTUAL_KEY)
 }
 
-export function getDefaultModel(): string {
-  return process.env.BIFROST_MODEL_DEFAULT || "gpt-4o-mini"
+export function getDefaultModel(): string | undefined {
+  // Único valor válido: BIFROST_MODEL_DEFAULT. Nunca inventar modelo.
+  return process.env.BIFROST_MODEL_DEFAULT
 }
 
-export function getReviewModel(): string {
-  return process.env.BIFROST_MODEL_REVIEW || "gpt-4o"
+export function getReviewModel(): string | undefined {
+  // Único valor válido: BIFROST_MODEL_REVIEW. Nunca inventar modelo.
+  return process.env.BIFROST_MODEL_REVIEW
 }
 
 function baseUrl(): string {
@@ -90,8 +92,8 @@ export async function getStatus(): Promise<BifrostStatus> {
   const base = {
     authority: AUTHORITY,
     credentialMode: CREDENTIAL_MODE,
-    defaultModel: getDefaultModel(),
-    reviewModel: getReviewModel(),
+    defaultModel: getDefaultModel() || "Not configured",
+    reviewModel: getReviewModel() || "Not configured",
   }
 
   if (!isConfigured()) {
@@ -150,6 +152,8 @@ async function chatCompletions(opts: CompleteOptions): Promise<string> {
         Authorization: `Bearer ${process.env.BIFROST_VIRTUAL_KEY}`,
       },
       body: JSON.stringify({
+        // model ausente (env não configurado) → campo omitido; o roteamento
+        // de modelo pertence ao CT109 Bifrost.
         model: opts.model || getDefaultModel(),
         messages,
         max_tokens: opts.maxTokens ?? 2000,

@@ -19,8 +19,8 @@ const emptyBifrost: BifrostInfo = {
   connected: false,
   authority: "CT109 Bifrost",
   credentialMode: "server-side",
-  defaultModel: "—",
-  reviewModel: "—",
+  defaultModel: "Not configured",
+  reviewModel: "Not configured",
 }
 
 function hasContent(v: unknown): boolean {
@@ -199,7 +199,7 @@ export default function SettingsPage() {
           <Upload className="h-5 w-5 text-teal" />
           <h2 className="font-heading font-semibold">Upload de Currículo</h2>
         </div>
-        <p className="mb-4 text-sm text-silver">Envie seu PDF ou TXT. O texto é extraído no servidor e descartado após a extração. Nunca armazenamos seu currículo.</p>
+        <p className="mb-4 text-sm text-silver">Envie seu PDF ou TXT. O currículo é armazenado de forma privada no CT223 e utilizado para extração e análise do perfil.</p>
         <form onSubmit={handleUpload} className="flex flex-col gap-3 sm:flex-row">
           <input className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-teal/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-teal hover:file:bg-teal/20" type="file" accept=".pdf,.txt" />
           <Button type="submit" disabled={uploading}>
