@@ -1,2 +1,2 @@
 allowBuilds:
-  sharp: true
+  "sharp@0.34.5": true

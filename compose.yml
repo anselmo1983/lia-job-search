@@ -1,0 +1,27 @@
+services:
+  lia-job-search:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: lia-job-search
+
+    restart: unless-stopped
+
+    # Runtime env canônico do CT223 (server-side only):
+    #   /opt/lia-job-search/runtime.env (mode 0600, owner root:root)
+    # Contém BIFROST_* (VK nunca é build arg nem exposta ao navegador).
+    env_file:
+      - runtime.env
+
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      LIA_DATA_DIR: /app/data
+
+    volumes:
+      - /opt/lia-job-search/data:/app/data
+
+    ports:
+      - "3000:3000"

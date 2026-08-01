@@ -3,7 +3,9 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import { completeJson, getDefaultModel } from "@/lib/inference/bifrost"
 
-const jobsPath = path.join(process.cwd(), "job_scraper", "seen_jobs.json")
+import { dataPath } from "@/lib/runtime/data-directory"
+
+const jobsPath = dataPath("job_scraper", "seen_jobs.json")
 
 // Arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
 // As credenciais ficam no servidor; nada de apiKey/provider/model vindo do cliente.

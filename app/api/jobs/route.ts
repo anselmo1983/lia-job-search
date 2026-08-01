@@ -2,8 +2,9 @@ import { NextResponse } from "next/server"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 
-const jobsPath = path.join(process.cwd(), "job_scraper", "seen_jobs.json")
-const trackerPath = path.join(process.cwd(), "job_search_tracker.csv")
+import { dataPath } from "@/lib/runtime/data-directory"
+
+const jobsPath = dataPath("job_scraper", "seen_jobs.json")
 
 async function readJobs(): Promise<any[]> {
   try {
@@ -17,6 +18,7 @@ async function readJobs(): Promise<any[]> {
 }
 
 async function writeJobs(jobs: any[]) {
+  await fs.mkdir(path.dirname(jobsPath), { recursive: true })
   await fs.writeFile(jobsPath, JSON.stringify(jobs, null, 2), "utf8")
 }
 
