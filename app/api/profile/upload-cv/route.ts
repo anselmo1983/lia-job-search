@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "node:fs"
 import path from "node:path"
+import { dataPath } from "@/lib/runtime/data-directory"
 
 // Política de validação do texto extraído
 const MIN_EXTRACTED_CHARS = 200
 const MAX_EXTRACTED_CHARS = 5000
-
-// Diretório de dados canônico (CT223): $LIA_DATA_DIR/documents/cv
-//   container: LIA_DATA_DIR=/app/data → /app/data/documents/cv
-//   host:      /opt/lia-job-search/data (bind -v /opt/lia-job-search/data:/app/data)
-const DATA_DIR = process.env.LIA_DATA_DIR || path.join(process.cwd(), "documents")
 
 // Mensagens de falha de extração que nunca devem ser aceitas como currículo
 const PLACEHOLDER_PATTERNS = [
@@ -32,7 +28,8 @@ export async function POST(request: Request) {
     const file = formData.get("file") as File
     if (!file) return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 })
 
-    const fileName = file.name
+    const originalName = file.name || "resume.pdf"
+    const fileName = path.basename(originalName)
     const lowerName = fileName.toLowerCase()
     if (!lowerName.endsWith(".pdf") && !lowerName.endsWith(".txt")) {
       return NextResponse.json(
@@ -48,9 +45,10 @@ export async function POST(request: Request) {
     }
 
     // Persistir em $LIA_DATA_DIR/documents/cv (fallback /tmp em serverless)
-    const savedName = `uploaded_${Date.now()}_${fileName}`
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_")
+    const savedName = `uploaded_${Date.now()}_${safeName}`
     try {
-      savedPath = path.join(DATA_DIR, "cv", savedName)
+      savedPath = dataPath("documents", "cv", savedName)
       await fs.mkdir(path.dirname(savedPath), { recursive: true })
       await fs.writeFile(savedPath, buffer)
     } catch {
