@@ -2,9 +2,41 @@ import { NextResponse } from "next/server"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 
-import { dataPath } from "@/lib/runtime/data-directory"
+import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
 
 const jobsPath = dataPath("job_scraper", "seen_jobs.json")
+
+function canonicalJobUrl(input: string): string {
+  try {
+    const url = new URL(input)
+    url.hash = ""
+    url.hostname = url.hostname.toLowerCase()
+
+    const tracking = [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "from",
+      "fromage",
+      "advn",
+      "vjs",
+      "xkcb",
+      "tk",
+    ]
+
+    for (const key of tracking) {
+      url.searchParams.delete(key)
+    }
+
+    url.searchParams.sort()
+
+    return url.toString()
+  } catch {
+    return input.trim().replace(/#.*$/, "").toLowerCase()
+  }
+}
 
 async function readJobs(): Promise<any[]> {
   try {
@@ -18,8 +50,7 @@ async function readJobs(): Promise<any[]> {
 }
 
 async function writeJobs(jobs: any[]) {
-  await fs.mkdir(path.dirname(jobsPath), { recursive: true })
-  await fs.writeFile(jobsPath, JSON.stringify(jobs, null, 2), "utf8")
+  await writeAtomic(jobsPath, jobs)
 }
 
 export async function GET() {
@@ -33,8 +64,30 @@ export async function POST(request: Request) {
     const jobs = await readJobs()
     
     if (body.action === "add") {
+      const incomingUrl =
+        typeof body.url === "string"
+          ? canonicalJobUrl(body.url)
+          : ""
+
+      if (incomingUrl) {
+        const duplicate = jobs.find(
+          (job: any) =>
+            typeof job.url === "string" &&
+            canonicalJobUrl(job.url) === incomingUrl,
+        )
+
+        if (duplicate) {
+          return NextResponse.json({
+            success: true,
+            duplicate: true,
+            job: duplicate,
+            total: jobs.length,
+          })
+        }
+      }
+
       const newJob = {
-        id: crypto.randomUUID(),
+        id: body.id || crypto.randomUUID(),
         title: body.title,
         company: body.company,
         location: body.location || "",
@@ -43,12 +96,15 @@ export async function POST(request: Request) {
         status: "discovered",
         fit: "unrated",
         score: null,
-        date: new Date().toISOString().split("T")[0],
+        strengths: [],
+        gaps: [],
+        reasoning: "",
+        date: body.date || new Date().toISOString().split("T")[0],
         source: body.source || "manual",
       }
       jobs.push(newJob)
       await writeJobs(jobs)
-      return NextResponse.json({ success: true, job: newJob, total: jobs.length })
+      return NextResponse.json({ success: true, duplicate: false, job: newJob, total: jobs.length })
     }
     
     if (body.action === "update") {

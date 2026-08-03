@@ -1,3 +1,5 @@
+import "server-only"
+
 /**
  * lib/inference/bifrost.ts — Cliente server-side do Bifrost (CT109)
  *
@@ -59,8 +61,34 @@ export interface CompleteOptions {
   json?: boolean
 }
 
+export type ChatMessage = {
+  role: "system" | "user" | "assistant"
+  content: string
+}
+
+export type BifrostChatRequest = {
+  model?: string
+  messages: ChatMessage[]
+  temperature?: number
+  response_format?: {
+    type: "json_object" | "text"
+  }
+}
+
+export type BifrostChatResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | null
+    }
+  }>
+}
+
 export function isConfigured(): boolean {
   return Boolean(process.env.BIFROST_BASE_URL && process.env.BIFROST_VIRTUAL_KEY)
+}
+
+export function bifrostConfigured(): boolean {
+  return isConfigured()
 }
 
 export function getDefaultModel(): string | undefined {
@@ -77,11 +105,58 @@ function baseUrl(): string {
   return (process.env.BIFROST_BASE_URL || "").replace(/\/+$/, "")
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+function getHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (process.env.BIFROST_VIRTUAL_KEY) {
+    headers["Authorization"] = `Bearer ${process.env.BIFROST_VIRTUAL_KEY}`
+  }
+  return headers
+}
+
+/** Primitiva única de requisição HTTP do Bifrost */
+async function requestBifrost(
+  endpoint: string,
+  method: "GET" | "POST",
+  body?: any,
+  timeoutMs: number = CHAT_TIMEOUT_MS
+): Promise<any> {
+  if (!isConfigured()) {
+    throw new Error("Inferência indisponível: Bifrost (CT109) não configurado no servidor (BIFROST_BASE_URL / BIFROST_VIRTUAL_KEY).")
+  }
+
+  const headers: Record<string, string> = {
+    ...getHeaders(),
+    ...(method === "POST" ? { "Content-Type": "application/json" } : {})
+  }
+
+  const url = `${baseUrl()}${endpoint}`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+      cache: "no-store",
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "")
+      throw new Error(`Bifrost (CT109) retornou ${res.status}: ${errText.slice(0, 300)}`)
+    }
+
+    const text = await res.text()
+    if (!text.trim()) {
+      return null
+    }
+
+    try {
+      return JSON.parse(text)
+    } catch {
+      return text
+    }
   } finally {
     clearTimeout(timer)
   }
@@ -104,30 +179,23 @@ export async function getStatus(): Promise<BifrostStatus> {
     }
   }
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${process.env.BIFROST_VIRTUAL_KEY}` }
-
   try {
-    const health = await fetchWithTimeout(`${baseUrl()}/health`, { headers }, HEALTH_TIMEOUT_MS)
-    if (health.ok) return { ...base, connected: true }
+    await requestBifrost("/health", "GET", undefined, HEALTH_TIMEOUT_MS)
+    return { ...base, connected: true }
   } catch {
-    // tenta o endpoint de modelos abaixo
-  }
-
-  try {
-    const models = await fetchWithTimeout(`${baseUrl()}/v1/models`, { headers }, HEALTH_TIMEOUT_MS)
-    if (models.ok) return { ...base, connected: true }
-  } catch {
-    // sem conectividade
+    // tenta endpoint v1/models
+    try {
+      await requestBifrost("/v1/models", "GET", undefined, HEALTH_TIMEOUT_MS)
+      return { ...base, connected: true }
+    } catch {
+      // sem conectividade
+    }
   }
 
   return { ...base, connected: false, message: "Não foi possível conectar ao Bifrost (CT109)" }
 }
 
 async function chatCompletions(opts: CompleteOptions): Promise<string> {
-  if (!isConfigured()) {
-    throw new Error("Inferência indisponível: Bifrost (CT109) não configurado no servidor (BIFROST_BASE_URL / BIFROST_VIRTUAL_KEY).")
-  }
-
   let messages: BifrostMessage[] = [
     ...(opts.system ? [{ role: "system" as const, content: opts.system }] : []),
     ...(opts.messages || []),
@@ -143,32 +211,14 @@ async function chatCompletions(opts: CompleteOptions): Promise<string> {
     }
   }
 
-  const res = await fetchWithTimeout(
-    `${baseUrl()}/v1/chat/completions`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.BIFROST_VIRTUAL_KEY}`,
-      },
-      body: JSON.stringify({
-        // model ausente (env não configurado) → campo omitido; o roteamento
-        // de modelo pertence ao CT109 Bifrost.
-        model: opts.model || getDefaultModel(),
-        messages,
-        max_tokens: opts.maxTokens ?? 2000,
-        ...(opts.json ? { response_format: { type: "json_object" } } : {}),
-      }),
-    },
-    CHAT_TIMEOUT_MS,
-  )
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "")
-    throw new Error(`Bifrost (CT109) retornou ${res.status}: ${body.slice(0, 300)}`)
+  const payload = {
+    model: opts.model || getDefaultModel(),
+    messages,
+    max_tokens: opts.maxTokens ?? 2000,
+    ...(opts.json ? { response_format: { type: "json_object" } } : {}),
   }
 
-  const data = await res.json()
+  const data = await requestBifrost("/v1/chat/completions", "POST", payload, CHAT_TIMEOUT_MS)
   const content = data?.choices?.[0]?.message?.content
   if (typeof content !== "string" || !content.trim()) {
     throw new Error("Bifrost (CT109) retornou uma resposta vazia.")
@@ -191,4 +241,25 @@ export async function completeJson(opts: CompleteOptions): Promise<unknown> {
   } catch {
     throw new Error("Bifrost (CT109) não retornou JSON válido.")
   }
+}
+
+/** Compatibilidade para chamadas estruturadas chat */
+export async function bifrostChat(
+  request: BifrostChatRequest,
+): Promise<BifrostChatResponse> {
+  const model =
+    request.model ||
+    process.env.BIFROST_MODEL_DEFAULT?.trim()
+
+  if (!model) {
+    throw new Error("No Bifrost application model alias configured")
+  }
+
+  const payload = {
+    ...request,
+    model,
+  }
+
+  const response = await requestBifrost("/v1/chat/completions", "POST", payload, CHAT_TIMEOUT_MS)
+  return response as BifrostChatResponse
 }

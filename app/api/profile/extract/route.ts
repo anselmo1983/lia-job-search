@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server"
+import { promises as fs } from "node:fs"
+import path from "node:path"
 import { completeJson, getDefaultModel } from "@/lib/inference/bifrost"
+import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
 
 // CT223 — extração de perfil. Arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
 // Nenhuma credencial vem do cliente; o Bifrost (CT109) é a autoridade de inferência.
 
 const MIN_PROFILE_CHARS = 200
 const MAX_PROFILE_CHARS = 8000
+
+const profilePath = dataPath("profile", "profile.json")
 
 const SYSTEM_PROMPT = `Extraia um perfil profissional estruturado deste currículo.
 Retorne APENAS JSON com a seguinte estrutura:
@@ -54,7 +59,9 @@ export async function POST(request: Request) {
       )
     }
 
-    return NextResponse.json({ profile })
+    await writeAtomic(profilePath, profile)
+
+    return NextResponse.json({ profile, persisted: true })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro ao extrair perfil"
     return NextResponse.json({ error: message }, { status: 500 })

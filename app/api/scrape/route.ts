@@ -38,8 +38,41 @@ interface Portal {
   normalize: Normalizer
 }
 
-function isPortalEnabled(skillName: string): boolean {
-  const skillPath = path.join(SKILLS_DIR, skillName, "SKILL.md")
+function canonicalJobUrl(input: string): string {
+  try {
+    const url = new URL(input)
+    url.hash = ""
+    url.hostname = url.hostname.toLowerCase()
+
+    const tracking = [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "from",
+      "fromage",
+      "advn",
+      "vjs",
+      "xkcb",
+      "tk",
+    ]
+
+    for (const key of tracking) {
+      url.searchParams.delete(key)
+    }
+
+    url.searchParams.sort()
+
+    return url.toString()
+  } catch {
+    return input.trim().replace(/#.*$/, "").toLowerCase()
+  }
+}
+
+function isPortalEnabled(portal: Portal): boolean {
+  const skillRoot = portal.cliPath.split("/cli/", 1)[0]
+  const skillPath = path.join(process.cwd(), skillRoot, "SKILL.md")
   if (!existsSync(skillPath)) return false
   const content = readFileSync(skillPath, "utf-8")
   // Check YAML front-matter for enabled: false — anything else means enabled
@@ -291,7 +324,7 @@ export async function POST(request: Request) {
     const diagnostics: { portal: string; enabled: boolean; failed: boolean; returned: number }[] = []
 
     for (const portal of PORTALS) {
-      if (!isPortalEnabled(portal.name)) {
+      if (!isPortalEnabled(portal)) {
         diagnostics.push({ portal: portal.name, enabled: false, failed: false, returned: 0 })
         continue
       }
@@ -302,7 +335,7 @@ export async function POST(request: Request) {
         if (!job) continue
         // Deduplicate by URL (skip empty URLs too)
         if (!job.url) continue
-        const key = job.url.replace(/[?#].*$/, "").toLowerCase()
+        const key = canonicalJobUrl(job.url)
         if (seenUrls.has(key)) continue
         seenUrls.add(key)
         allJobs.push(job)
