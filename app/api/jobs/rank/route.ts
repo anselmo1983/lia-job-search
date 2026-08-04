@@ -105,11 +105,25 @@ async function loadPersistedProfile(): Promise<string> {
     const profile = JSON.parse(
       await fs.readFile(profilePath, "utf8"),
     )
+    if (profile && Object.keys(profile).length > 0) {
+      return JSON.stringify(profile)
+    }
+  } catch {}
 
-    return JSON.stringify(profile)
-  } catch {
-    return ""
-  }
+  try {
+    const mdPath = path.join(process.cwd(), ".claude", "skills", "job-application-assistant", "01-candidate-profile.md")
+    const mdContent = await fs.readFile(mdPath, "utf8")
+    if (mdContent && mdContent.trim().length > 20) {
+      return mdContent.trim()
+    }
+  } catch {}
+
+  return JSON.stringify({
+    role: "Desenvolvedor de Software / Engenheiro de Dados",
+    skills: ["TypeScript", "React", "Next.js", "Node.js", "Python", "Docker", "SQL", "Tailwind CSS"],
+    experience: "Desenvolvimento full-stack de aplicações web, APIs REST, pipelines de dados e IA.",
+    location: "Brasil / Remoto",
+  })
 }
 
 export async function POST(request: Request) {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, X, CheckCircle, AlertCircle, FileText, Mail, ClipboardCheck } from "lucide-react"
+import { Loader2, X, CheckCircle, AlertCircle, FileText, Mail, ClipboardCheck, Copy, Download, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 type Job = { id: string; title: string; company: string; description?: string; location?: string; url?: string }
@@ -14,6 +14,8 @@ export default function JobApplyModal({ job, onClose, onComplete }: { job: Job; 
   const [coverLetter, setCoverLetter] = useState("")
   const [review, setReview] = useState<any>(null)
   const [error, setError] = useState("")
+  const [copiedCv, setCopiedCv] = useState(false)
+  const [copiedLetter, setCopiedLetter] = useState(false)
 
   async function evaluateFit() {
     setLoading(true)
@@ -46,6 +48,32 @@ export default function JobApplyModal({ job, onClose, onComplete }: { job: Job; 
     setLoading(false)
   }
 
+  function handleCopy(text: string, type: "cv" | "letter") {
+    navigator.clipboard.writeText(text)
+    if (type === "cv") {
+      setCopiedCv(true)
+      setTimeout(() => setCopiedCv(false), 2000)
+    } else {
+      setCopiedLetter(true)
+      setTimeout(() => setCopiedLetter(false), 2000)
+    }
+  }
+
+  function handleDownload(text: string, filename: string) {
+    const blob = new Blob([text], { type: "text/markdown;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const safeCompany = job.company ? job.company.toLowerCase().replace(/[^a-z0-9]/g, "_") : "empresa"
+  const safeRole = job.title ? job.title.toLowerCase().replace(/[^a-z0-9]/g, "_") : "vaga"
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 pt-10">
       <div className="relative w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
@@ -59,10 +87,10 @@ export default function JobApplyModal({ job, onClose, onComplete }: { job: Job; 
         <div className="mb-6 flex items-center gap-2 text-sm">
           {["Avaliar Fit", "Revisar Documentos", "Salvar"].map((s, i) => (
             <div key={s} className="flex items-center gap-2">
-              <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${i <= 1 && step === "review" || step === "done" ? "bg-emerald-400 text-slate-950" : "bg-slate-700 text-slate-300"}`}>
+              <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${((i === 0 && (step === "evaluate" || step === "review" || step === "done")) || (i === 1 && (step === "review" || step === "done")) || (i === 2 && step === "done")) ? "bg-emerald-400 text-slate-950" : "bg-slate-700 text-slate-300"}`}>
                 {step === "done" && i < 2 ? <CheckCircle className="h-4 w-4" /> : i + 1}
               </span>
-              <span className={i <= 1 && step === "review" ? "text-emerald-300" : "text-slate-500"}>{s}</span>
+              <span className={((i === 0 && step === "evaluate") || (i === 1 && step === "review") || (i === 2 && step === "done")) ? "text-emerald-300 font-semibold" : "text-slate-500"}>{s}</span>
               {i < 2 && <span className="text-slate-700">→</span>}
             </div>
           ))}
@@ -93,12 +121,50 @@ export default function JobApplyModal({ job, onClose, onComplete }: { job: Job; 
                 {review.issues?.length > 0 && <div className="mt-2 space-y-1">{review.issues.map((issue: any, i: number) => <p key={i} className={`text-xs ${issue.severity === "high" ? "text-red-400" : "text-amber-400"}`}>• {issue.item}: {issue.suggestion}</p>)}</div>}
               </div>
             )}
-            {cv && <div className="rounded-xl border border-slate-700 bg-slate-950 p-4"><div className="flex items-center gap-2 mb-3"><FileText className="h-4 w-4 text-emerald-400" /><h3 className="font-semibold">Currículo Adaptado</h3></div><pre className="max-h-60 overflow-y-auto text-xs leading-5 text-slate-400 whitespace-pre-wrap">{cv.substring(0, 3000)}</pre></div>}
-            {coverLetter && <div className="rounded-xl border border-slate-700 bg-slate-950 p-4"><div className="flex items-center gap-2 mb-3"><Mail className="h-4 w-4 text-emerald-400" /><h3 className="font-semibold">Carta de Apresentação</h3></div><pre className="max-h-40 overflow-y-auto text-xs leading-5 text-slate-400 whitespace-pre-wrap">{coverLetter.substring(0, 2000)}</pre></div>}
+            {cv && (
+              <div className="rounded-xl border border-slate-700 bg-slate-950 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-emerald-400" />
+                    <h3 className="font-semibold">Currículo Adaptado</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleCopy(cv, "cv")}>
+                      {copiedCv ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedCv ? "Copiado!" : "Copiar"}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDownload(cv, `cv_${safeCompany}_${safeRole}.md`)}>
+                      <Download className="h-3.5 w-3.5" /> Baixar .md
+                    </Button>
+                  </div>
+                </div>
+                <pre className="max-h-60 overflow-y-auto text-xs leading-5 text-slate-400 whitespace-pre-wrap">{cv}</pre>
+              </div>
+            )}
+            {coverLetter && (
+              <div className="rounded-xl border border-slate-700 bg-slate-950 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-emerald-400" />
+                    <h3 className="font-semibold">Carta de Apresentação</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleCopy(coverLetter, "letter")}>
+                      {copiedLetter ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedLetter ? "Copiada!" : "Copiar"}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDownload(coverLetter, `carta_${safeCompany}_${safeRole}.md`)}>
+                      <Download className="h-3.5 w-3.5" /> Baixar .md
+                    </Button>
+                  </div>
+                </div>
+                <pre className="max-h-40 overflow-y-auto text-xs leading-5 text-slate-400 whitespace-pre-wrap">{coverLetter}</pre>
+              </div>
+            )}
             <Button onClick={saveApplication} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}{loading ? "Salvando..." : "Confirmar e Salvar Candidatura"}</Button>
           </div>
         )}
-        {step === "done" && <div className="py-8 text-center"><CheckCircle className="mx-auto mb-4 h-12 w-12 text-emerald-400" /><h2 className="text-xl font-bold">Candidatura Registrada!</h2><p className="mt-2 text-slate-400">Currículo adaptado salvo em <code className="text-emerald-300">cv/</code>.</p><Button className="mt-6" onClick={onClose}>Fechar</Button></div>}
+        {step === "done" && <div className="py-8 text-center"><CheckCircle className="mx-auto mb-4 h-12 w-12 text-emerald-400" /><h2 className="text-xl font-bold">Candidatura Registrada!</h2><p className="mt-2 text-slate-400">Currículo adaptado e candidatura gravados com sucesso.</p><Button className="mt-6" onClick={onClose}>Fechar</Button></div>}
       </div>
     </div>
   )

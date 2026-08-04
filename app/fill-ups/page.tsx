@@ -1,13 +1,303 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react"
-import { EmptyState, PageHeader } from "@/components/app-shell"
-import { getJobs } from "@/lib/job-data"
+import { ArrowRight, CheckCircle2, Sparkles, Radar, Star, Loader2, Search, ExternalLink, Filter, Zap } from "lucide-react"
+import { PageHeader } from "@/components/app-shell"
+import { Button } from "@/components/ui/button"
+import JobApplyModal from "@/components/job-apply-modal"
 
-export const dynamic = "force-dynamic"
-export const metadata = { title: "AI Fill-Ups" }
+type Job = {
+  key: string
+  id: string
+  title: string
+  company: string
+  location: string
+  url: string
+  status: string
+  fit: string
+  score: number | null
+  deadline?: string
+  description?: string
+  strengths?: string[]
+  gaps?: string[]
+  reasoning?: string
+}
 
-const kit = ["ATS-ready resume", "Tailored cover letter", "Interview prep", "Outreach template", "Salary tips"]
-export default async function FillUpsPage() {
-  const jobs = (await getJobs()).filter((job) => job.score !== null).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 6)
-  return <><PageHeader title="AI Job Search Fill-Ups" description="Your strongest ranked matches, ready to move into the application workflow. Run the agent on a schedule to keep this inbox fresh."/>{jobs.length === 0 ? <EmptyState title="Your first Fill-Up is waiting" description="Search and rank jobs to populate this inbox with the best-fit opportunities." command="/scrape → /rank"/> : <div className="grid gap-5 lg:grid-cols-2">{jobs.map((job) => <article key={job.key} className="rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-slate-900 to-emerald-950/20 p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">AI recommended</p><h2 className="mt-2 text-xl font-semibold">{job.title}</h2><p className="text-slate-400">{job.company} · {job.location}</p></div><div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-emerald-400 text-xl font-bold text-slate-950">{job.score}</div></div><div className="mt-5 grid gap-2 sm:grid-cols-2">{kit.map((item) => <div key={item} className="flex items-center gap-2 text-sm text-slate-300"><CheckCircle2 className="h-4 w-4 text-emerald-400"/>{item}</div>)}</div><div className="mt-6 flex items-center justify-between border-t border-slate-800 pt-4"><code className="text-sm text-emerald-300">/apply {job.url ? "<job URL>" : job.company}</code>{job.url && <a href={job.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-white hover:text-emerald-300">View role <ArrowRight className="h-4 w-4"/></a>}</div></article>)}</div>}<div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-5"><div className="flex gap-3"><Sparkles className="h-5 w-5 text-emerald-400"/><div><h2 className="font-semibold">Application kits are generated on demand</h2><p className="mt-1 text-sm text-slate-400">Select a match and run <Link href="/workflows" className="text-emerald-400 hover:underline">the /apply workflow</Link>. It uses your verified profile and never invents experience.</p></div></div></div></>
+const kitItems = [
+  "Currículo ATS adaptado",
+  "Carta de apresentação",
+  "Simulação de entrevista",
+  "Template de abordagem",
+  "Orientação salarial",
+]
+
+export default function FillUpsPage() {
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [loading, setLoading] = useState(true)
+  const [scraping, setScraping] = useState(false)
+  const [ranking, setRanking] = useState(false)
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null)
+  const [showApply, setShowApply] = useState(false)
+  const [minScore, setMinScore] = useState<number>(0)
+  const [query, setQuery] = useState("")
+
+  useEffect(() => {
+    loadJobs()
+  }, [])
+
+  async function loadJobs() {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/jobs")
+      const data = await res.json()
+      const rawJobs = data.jobs || []
+      const mapped: Job[] = rawJobs.map((j: any, i: number) => ({
+        key: String(j.key || j.id || i),
+        id: String(j.id || j.key || i),
+        title: String(j.title || "Vaga sem título"),
+        company: String(j.company || "Empresa não informada"),
+        location: String(j.location || "Local não informado"),
+        url: String(j.url || j.link || ""),
+        status: String(j.status || "discovered"),
+        fit: String(j.fit || "unrated"),
+        score: typeof j.rank_score === "number" ? j.rank_score : typeof j.score === "number" ? j.score : null,
+        deadline: String(j.deadline || ""),
+        description: String(j.description || ""),
+        strengths: Array.isArray(j.strengths) ? j.strengths : [],
+        gaps: Array.isArray(j.gaps) ? j.gaps : [],
+        reasoning: String(j.reasoning || ""),
+      }))
+      setJobs(mapped)
+    } catch (err) {
+      console.error("Erro ao carregar vagas nos Fill-Ups:", err)
+    }
+    setLoading(false)
+  }
+
+  async function runScrape() {
+    setScraping(true)
+    try {
+      const res = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query || "desenvolvedor software", location: "Brasil" }),
+      })
+      const data = await res.json()
+      if (data.results && data.results.length > 0) {
+        for (const job of data.results) {
+          await fetch("/api/jobs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "add", ...job }),
+          })
+        }
+      }
+      await loadJobs()
+    } catch (err) {
+      console.error("Erro ao executar scraper:", err)
+    }
+    setScraping(false)
+  }
+
+  async function runRank() {
+    setRanking(true)
+    try {
+      await fetch("/api/jobs/rank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobs }),
+      })
+      await loadJobs()
+    } catch (err) {
+      console.error("Erro ao ranquear vagas:", err)
+    }
+    setRanking(false)
+  }
+
+  const rankedJobs = jobs.filter((job) => job.score !== null)
+  const sortedJobs = [...rankedJobs].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  const filteredJobs = sortedJobs.filter((job) => (job.score ?? 0) >= minScore)
+
+  const unrankedCount = jobs.filter((job) => job.score === null).length
+
+  return (
+    <>
+      <PageHeader
+        title="AI Job Search Fill-Ups"
+        description="Seus melhores matches ranqueados por IA, prontos para gerar kits completos e avançar no pipeline."
+      />
+
+      {/* Header Actions & Controls */}
+      <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 border border-slate-800">
+              <Filter className="h-4 w-4 text-emerald-400" />
+              <span className="text-xs text-slate-400">Score mínimo:</span>
+              <select
+                className="bg-transparent text-xs font-semibold text-emerald-300 outline-none cursor-pointer"
+                value={minScore}
+                onChange={(e) => setMinScore(Number(e.target.value))}
+              >
+                <option value={0} className="bg-slate-900 text-slate-200">Todos ({sortedJobs.length})</option>
+                <option value={80} className="bg-slate-900 text-emerald-400">80+ Strong Fit</option>
+                <option value={70} className="bg-slate-900 text-emerald-400">70+ Medium Fit</option>
+                <option value={50} className="bg-slate-900 text-amber-400">50+ Recomendados</option>
+              </select>
+            </div>
+
+            {unrankedCount > 0 && (
+              <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-400 border border-amber-500/20">
+                {unrankedCount} vaga(s) aguardando classificação
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={runScrape} disabled={scraping}>
+              {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4 text-emerald-400" />}
+              {scraping ? "Buscando..." : "Buscar Novas Vagas (/scrape)"}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={runRank} disabled={ranking || jobs.length === 0}>
+              {ranking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4 text-amber-400" />}
+              {ranking ? "Classificando..." : "Classificar por IA (/rank)"}
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Main Content */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+        </div>
+      ) : filteredJobs.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/50 p-10 text-center">
+          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-400/10 text-emerald-400">
+            <Zap className="h-7 w-7" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Seu primeiro Fill-Up está aguardando</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
+            Busque e classifique vagas usando IA para popular esta caixa de entrada com os melhores matches para seu perfil.
+          </p>
+
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button onClick={runScrape} disabled={scraping}>
+              {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
+              {scraping ? "Buscando..." : "Buscar Vagas (/scrape)"}
+            </Button>
+            {jobs.length > 0 && (
+              <Button variant="secondary" onClick={runRank} disabled={ranking}>
+                {ranking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+                {ranking ? "Ranqueando..." : `Classificar ${jobs.length} vagas (/rank)`}
+              </Button>
+            )}
+          </div>
+          <p className="mt-4 text-xs font-mono text-emerald-400/80">Fluxo recomendado: /scrape → /rank → /apply</p>
+        </div>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {filteredJobs.map((job) => (
+            <article
+              key={job.key}
+              className="flex flex-col justify-between rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/20 p-6 shadow-lg transition hover:border-emerald-400/50"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-emerald-400 border border-emerald-400/20">
+                      <Sparkles className="h-3 w-3" /> Recomendado por IA
+                    </span>
+                    <h2 className="mt-2 text-xl font-bold text-white">{job.title}</h2>
+                    <p className="text-sm text-slate-400">
+                      {job.company} · {job.location}
+                    </p>
+                  </div>
+                  <div
+                    className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-xl font-bold text-slate-950 shadow-md ${
+                      (job.score ?? 0) >= 80
+                        ? "bg-emerald-400"
+                        : (job.score ?? 0) >= 60
+                        ? "bg-amber-400"
+                        : "bg-slate-300"
+                    }`}
+                  >
+                    {job.score}
+                  </div>
+                </div>
+
+                {job.reasoning && (
+                  <p className="mt-4 text-xs italic text-slate-400 border-l-2 border-emerald-400/40 pl-3">
+                    "{job.reasoning}"
+                  </p>
+                )}
+
+                {/* Kit Inclusion list */}
+                <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                  {kitItems.map((item) => (
+                    <div key={item} className="flex items-center gap-2 text-xs text-slate-300">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-between border-t border-slate-800/80 pt-4">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSelectedJob(job)
+                    setShowApply(true)
+                  }}
+                  className="gap-2 bg-emerald-400 text-slate-950 hover:bg-emerald-300 font-semibold"
+                >
+                  <span>Gerar Kit & Aplicar (/apply)</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+
+                {job.url && (
+                  <a
+                    href={job.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-emerald-300 transition"
+                  >
+                    <span>Ver vaga</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {/* Info Banner */}
+      <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div className="flex gap-3">
+          <Sparkles className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div>
+            <h2 className="font-semibold text-white">Kits de candidatura gerados sob demanda</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Selecione um match acima e clique em <strong>Gerar Kit & Aplicar</strong>. O workflow utiliza seu perfil verificado para gerar currículo ATS adaptado e carta de apresentação sem inventar experiências.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Apply Modal */}
+      {showApply && selectedJob && (
+        <JobApplyModal
+          job={selectedJob}
+          onClose={() => {
+            setShowApply(false)
+            setSelectedJob(null)
+          }}
+          onComplete={() => loadJobs()}
+        />
+      )}
+    </>
+  )
 }
