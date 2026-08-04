@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "node:fs"
 import path from "node:path"
+import { PDFParse } from "pdf-parse"
 import { dataPath } from "@/lib/runtime/data-directory"
 
 // Política de validação do texto extraído
@@ -64,8 +65,6 @@ export async function POST(request: Request) {
     if (lowerName.endsWith(".pdf")) {
       try {
         // Extrair texto com pdf-parse v2
-        const { PDFParse } = await import("pdf-parse")
-        if (!PDFParse) throw new Error("pdf-parse não disponível no servidor")
         const parser = new PDFParse({ data: buffer })
         try {
           const result = await parser.getText()
@@ -73,7 +72,8 @@ export async function POST(request: Request) {
         } finally {
           await parser.destroy().catch(() => {})
         }
-      } catch {
+      } catch (pdfError) {
+        console.error("Erro no processamento do PDF:", pdfError)
         // Falha de parsing = erro HTTP explícito, NUNCA success=true com placeholder
         await discardSavedFile()
         return NextResponse.json(

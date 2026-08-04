@@ -44,8 +44,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN pnpm build \
- && mkdir -p /app/canvas-libs/@napi-rs \
- && find /app/node_modules/.pnpm -maxdepth 1 -name "*canvas*" -exec sh -c 'cp -r -L {}/node_modules/@napi-rs/* /app/canvas-libs/@napi-rs/' \;
+ && mkdir -p /app/canvas-libs/@napi-rs /app/canvas-libs/pdf-parse /app/canvas-libs/pdfjs-dist \
+ && find /app/node_modules/.pnpm -maxdepth 1 -name "*canvas*" -exec sh -c 'cp -r -L {}/node_modules/@napi-rs/* /app/canvas-libs/@napi-rs/' \; \
+ && find /app/node_modules/.pnpm -maxdepth 1 -name "*pdf-parse*" -exec sh -c 'cp -r -L {}/node_modules/pdf-parse /app/canvas-libs/pdf-parse' \; \
+ && find /app/node_modules/.pnpm -maxdepth 1 -name "*pdfjs-dist*" -exec sh -c 'cp -r -L {}/node_modules/pdfjs-dist /app/canvas-libs/pdfjs-dist' \;
 
 
 FROM oven/bun:1.3.14 AS bun-runtime
@@ -78,6 +80,8 @@ COPY --from=bun-runtime /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/canvas-libs/@napi-rs ./node_modules/@napi-rs
+COPY --from=builder --chown=nextjs:nodejs /app/canvas-libs/pdf-parse ./node_modules/pdf-parse
+COPY --from=builder --chown=nextjs:nodejs /app/canvas-libs/pdfjs-dist ./node_modules/pdfjs-dist
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/.agents ./.agents
 
