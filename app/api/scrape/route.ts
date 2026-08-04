@@ -344,9 +344,22 @@ export async function POST(request: Request) {
       diagnostics.push({ portal: portal.name, enabled: true, failed, returned })
     }
 
-    // Bifrost NÃO é fonte de vagas: zero resultados → results: [] + diagnostics.
-    // É proibido produzir JobResult originado de LLM.
-    return NextResponse.json({ results: allJobs, sourceDiagnostics: diagnostics })
+    // Filter results by location if a target location was specified
+    let filteredJobs = allJobs
+    if (location) {
+      const locLower = location.toLowerCase()
+      const isBrazilQuery = locLower.includes("brasil") || locLower.includes("brazil") || locLower === "br"
+      filteredJobs = allJobs.filter((job) => {
+        if (!job.location) return true
+        const jobLoc = job.location.toLowerCase()
+        if (jobLoc.includes(locLower)) return true
+        if (jobLoc.includes("remote") || jobLoc.includes("remoto") || jobLoc.includes("home office")) return true
+        if (isBrazilQuery && (jobLoc.includes("brasil") || jobLoc.includes("brazil") || jobLoc.includes("br") || jobLoc.includes("saul") || jobLoc.includes("paulo") || jobLoc.includes("rio"))) return true
+        return false
+      })
+    }
+
+    return NextResponse.json({ results: filteredJobs, sourceDiagnostics: diagnostics })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }

@@ -91,7 +91,27 @@ export default function JobsPage() {
 
   const allJobs = [...jobs]
   const displayJobs = searchResults.length > 0 ? searchResults : allJobs
-  const sorted = [...displayJobs].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
+  const filteredDisplay = searchLocation.trim()
+    ? displayJobs.filter((job) => {
+        if (!job.location) return true
+        const loc = job.location.toLowerCase()
+        const target = searchLocation.toLowerCase()
+        if (target.includes("brasil") || target.includes("brazil")) {
+          return (
+            loc.includes("brasil") ||
+            loc.includes("brazil") ||
+            loc.includes("br") ||
+            loc.includes("remote") ||
+            loc.includes("remoto") ||
+            loc.includes("home office") ||
+            loc.includes("paulo") ||
+            loc.includes("rio")
+          )
+        }
+        return loc.includes(target) || loc.includes("remote") || loc.includes("remoto")
+      })
+    : displayJobs
+  const sorted = [...filteredDisplay].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
 
   return (
     <>
