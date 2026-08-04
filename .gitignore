@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 bun.lock
+
 
 # Next.js
 .next/
@@ -47,6 +49,8 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+.serena/
+
 
 # Memory files (Claude Code user-specific)
 .claude/projects/
