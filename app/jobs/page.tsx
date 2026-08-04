@@ -29,6 +29,19 @@ const PRESET_QUERIES = [
   "DevOps Engineer",
 ]
 
+function formatFitBadge(fit: string, score: number | null): { label: string; style: string } {
+  const s = score ?? 0
+  if (s >= 80) return { label: "Alta Compatibilidade", style: "bg-emerald-400/15 text-emerald-300 border-emerald-400/30" }
+  if (s >= 60) return { label: "Média Compatibilidade", style: "bg-amber-400/15 text-amber-300 border-amber-400/30" }
+  if (score !== null) return { label: "Baixa Compatibilidade", style: "bg-slate-800 text-slate-400 border-slate-700" }
+
+  const f = (fit || "").toLowerCase()
+  if (f === "strong fit" || f === "high" || f.includes("alta")) return { label: "Alta Compatibilidade", style: "bg-emerald-400/15 text-emerald-300 border-emerald-400/30" }
+  if (f === "medium fit" || f.includes("média") || f.includes("media")) return { label: "Média Compatibilidade", style: "bg-amber-400/15 text-amber-300 border-amber-400/30" }
+  if (f === "low fit" || f.includes("baixa")) return { label: "Baixa Compatibilidade", style: "bg-slate-800 text-slate-400 border-slate-700" }
+  return { label: "Não Classificado", style: "bg-slate-800 text-slate-400 border-slate-700" }
+}
+
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
@@ -187,7 +200,7 @@ export default function JobsPage() {
                 onClick={() => setStatusFilter("strong")}
                 className={`px-2.5 py-1 rounded-md transition ${statusFilter === "strong" ? "bg-emerald-400/20 text-emerald-300 font-medium" : "text-slate-400"}`}
               >
-                Strong Fit (70+)
+                Alta Compatibilidade (70+)
               </button>
               <button
                 onClick={() => setStatusFilter("unranked")}
@@ -217,62 +230,57 @@ export default function JobsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {sorted.map((job) => (
-            <div key={job.id || job.key} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-slate-700">
-              <div className="flex flex-col justify-between gap-4 sm:flex-row">
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold text-white">{job.title}</h2>
-                    {job.score !== null && (
-                      <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-400 text-xs font-bold text-slate-950">
-                        {job.score}
+          {sorted.map((job) => {
+            const fitBadge = formatFitBadge(job.fit, job.score)
+            return (
+              <div key={job.id || job.key} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-slate-700">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold text-white">{job.title}</h2>
+                      {job.score !== null && (
+                        <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-400 text-xs font-bold text-slate-950">
+                          {job.score}
+                        </span>
+                      )}
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium border ${fitBadge.style}`}>
+                        {fitBadge.label}
                       </span>
-                    )}
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        job.fit === "strong fit" || job.fit === "high" || (job.score ?? 0) >= 70
-                          ? "bg-emerald-400/15 text-emerald-300 border border-emerald-400/20"
-                          : job.fit === "unrated" || job.score === null
-                          ? "bg-slate-800 text-slate-400"
-                          : "bg-amber-400/15 text-amber-300 border border-amber-400/20"
-                      }`}
-                    >
-                      {job.fit || "não classificado"}
-                    </span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {job.company} · {job.location || "Local não informado"}
+                    </p>
+                    {job.description && <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">{job.description}</p>}
+                    {job.date && <p className="mt-2 text-xs text-slate-500">Publicado em: {job.date}</p>}
                   </div>
-                  <p className="mt-1 text-sm text-slate-400">
-                    {job.company} · {job.location || "Local não informado"}
-                  </p>
-                  {job.description && <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">{job.description}</p>}
-                  {job.date && <p className="mt-2 text-xs text-slate-500">Publicado em: {job.date}</p>}
-                </div>
-                <div className="flex items-start gap-2 shrink-0">
-                  {job.url && (
-                    <a
-                      href={job.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg p-2.5 text-slate-400 hover:bg-slate-800 hover:text-emerald-400 transition"
-                      title="Abrir anúncio original"
+                  <div className="flex items-start gap-2 shrink-0">
+                    {job.url && (
+                      <a
+                        href={job.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg p-2.5 text-slate-400 hover:bg-slate-800 hover:text-emerald-400 transition"
+                        title="Abrir anúncio original"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setSelectedJob(job)
+                        setShowApply(true)
+                      }}
+                      className="gap-1.5 bg-emerald-400 text-slate-950 hover:bg-emerald-300 font-medium"
                     >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  )}
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setSelectedJob(job)
-                      setShowApply(true)
-                    }}
-                    className="gap-1.5 bg-emerald-400 text-slate-950 hover:bg-emerald-300 font-medium"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>Aplicar (/apply)</span>
-                  </Button>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Aplicar (/apply)</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

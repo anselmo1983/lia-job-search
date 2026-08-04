@@ -77,31 +77,31 @@ export async function POST(request: Request) {
     // Step 1: Avaliar fit (modelo padrão)
     result.evaluation = await completeJson({
       model: defaultModel,
-      system: "Avalie o fit entre o perfil do candidato e a vaga. Retorne JSON: {fitScore:0-100, verdict, strengths:[string], gaps:[string], recommendation}",
-      messages: [{ role: "user", content: `Perfil do Candidato:\n${profileText.substring(0, 3000)}\n\nVaga:\n${jobText}` }],
+      system: "Você é o avaliador oficial do Lia Job Search. Avalie o fit entre o perfil do candidato e a vaga com total fidelidade aos fatos. REGRA CRÍTICA: Nunca invente experiências. Retorne JSON em Português do Brasil: {fitScore:0-100, verdict:string, strengths:[string], gaps:[string], recommendation:string}",
+      messages: [{ role: "user", content: `Perfil do Candidato:\n${profileText.substring(0, 4000)}\n\nVaga:\n${jobText}` }],
       maxTokens: 2000,
     })
 
     // Step 2: Gerar CV adaptado (modelo padrão)
     result.cv = await completeText({
       model: defaultModel,
-      system: "Gere um currículo adaptado para esta vaga em Markdown. Inclua: resumo profissional, experiência, habilidades, educação.",
-      messages: [{ role: "user", content: `Perfil: ${profileText}\n\nVaga: ${job.title} na ${job.company}\n\nDescrição: ${job.description || ""}` }],
+      system: "Gere um currículo adaptado para esta vaga em Markdown em Português do Brasil (pt-BR). REGRA ABSOLUTA: Utilize apenas fatos e experiências reais descritas no perfil do candidato. Não invente cargos, tecnologias ou conquistas. Destaque e re-enquadre as habilidades verdadeiras para responder às exigências da vaga.",
+      messages: [{ role: "user", content: `Perfil Real do Candidato:\n${profileText}\n\nVaga:\n${job.title} na ${job.company}\n\nDescrição:\n${job.description || ""}` }],
       maxTokens: 4000,
     })
 
     // Step 3: Gerar carta de apresentação (modelo padrão)
     result.coverLetter = await completeText({
       model: defaultModel,
-      system: "Gere uma carta de apresentação profissional em Markdown. Formal, personalizada para a vaga.",
-      messages: [{ role: "user", content: `Vaga: ${job.title} na ${job.company}\n\nDescrição: ${job.description || ""}\n\nPerfil: ${profileText.substring(0, 1000)}` }],
+      system: "Gere uma carta de apresentação profissional e personalizada para esta vaga em Português do Brasil (pt-BR). Formal, persuasiva e baseada estritamente no perfil verificado do candidato.",
+      messages: [{ role: "user", content: `Vaga: ${job.title} na ${job.company}\n\nDescrição: ${job.description || ""}\n\nPerfil Real: ${profileText.substring(0, 2000)}` }],
       maxTokens: 4000,
     })
 
     // Step 4: Revisão por segundo agente (modelo de revisão)
     result.review = await completeJson({
       model: reviewModel,
-      system: "Revise o currículo e carta gerados. Retorne JSON: {issues:[{severity, item, suggestion}], atsScore:0-100, improvements:[string]}",
+      system: "Você é o agente revisor ATS e especialista em carreiras. Revise o currículo e a carta gerados. Retorne JSON em Português do Brasil: {issues:[{severity:'high'|'medium'|'low', item:string, suggestion:string}], atsScore:0-100, improvements:[string]}",
       messages: [{ role: "user", content: `Currículo:\n${result.cv}\n\nCarta:\n${result.coverLetter}\n\nVaga: ${job.title} na ${job.company}` }],
       maxTokens: 2000,
     })
@@ -109,10 +109,10 @@ export async function POST(request: Request) {
     // Step 5: Versão final revisada (modelo de revisão)
     result.finalCv = await completeText({
       model: reviewModel,
-      system: "Incorpore as revisões e gere a versão final do currículo em Markdown.",
+      system: "Incorpore as sugestões da revisão ATS e gere a versão final otimizada do currículo em Markdown em Português do Brasil (pt-BR). Preserve a precisão factual.",
       messages: [
         { role: "assistant", content: `Currículo original:\n${result.cv}` },
-        { role: "assistant", content: `Revisões: ${JSON.stringify((result.review as any)?.issues || [])}` },
+        { role: "assistant", content: `Revisões ATS: ${JSON.stringify((result.review as any)?.issues || [])}` },
       ],
       maxTokens: 4000,
     })
