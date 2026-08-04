@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "node:fs"
 import path from "node:path"
-import pdfParse from "pdf-parse"
+// @ts-ignore
+import pdfParse from "pdf-parse/lib/pdf-parse.js"
 import { dataPath } from "@/lib/runtime/data-directory"
 
 // Política de validação do texto extraído
