@@ -156,7 +156,7 @@ export default function SettingsPage() {
             ) : (
               <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs ${bifrost.connected ? "bg-emerald-400/15 text-emerald-400" : "bg-red-400/15 text-red-400"}`}>
                 {bifrost.connected ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                {bifrost.connected ? "Connected" : "Disconnected"}
+                {bifrost.connected ? "Conectado" : "Desconectado"}
               </span>
             )}
             <Button variant="ghost" size="sm" onClick={loadStatus} disabled={statusLoading} aria-label="Recarregar status">
@@ -167,19 +167,19 @@ export default function SettingsPage() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg bg-slate-950 p-3">
-            <p className="text-xs text-silver">Inference authority</p>
+            <p className="text-xs text-silver">Autoridade de Inferência</p>
             <p className="mt-1 font-mono text-sm text-cloud">{bifrost.authority}</p>
           </div>
           <div className="rounded-lg bg-slate-950 p-3">
-            <p className="text-xs text-silver">Credential mode</p>
+            <p className="text-xs text-silver">Modo de Credenciais</p>
             <p className="mt-1 font-mono text-sm text-cloud capitalize">{bifrost.credentialMode}</p>
           </div>
           <div className="rounded-lg bg-slate-950 p-3">
-            <p className="text-xs text-silver">Default model</p>
+            <p className="text-xs text-silver">Modelo Padrão</p>
             <p className="mt-1 font-mono text-sm text-cloud">{bifrost.defaultModel}</p>
           </div>
           <div className="rounded-lg bg-slate-950 p-3">
-            <p className="text-xs text-silver">Review model</p>
+            <p className="text-xs text-silver">Modelo de Revisão</p>
             <p className="mt-1 font-mono text-sm text-cloud">{bifrost.reviewModel}</p>
           </div>
         </div>
