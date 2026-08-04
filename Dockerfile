@@ -46,8 +46,9 @@ COPY . .
 RUN pnpm build \
  && mkdir -p /app/canvas-libs/@napi-rs /app/canvas-libs/pdf-parse /app/canvas-libs/pdfjs-dist \
  && find /app/node_modules/.pnpm -maxdepth 1 -name "*canvas*" -exec sh -c 'cp -r -L {}/node_modules/@napi-rs/* /app/canvas-libs/@napi-rs/' \; \
- && find /app/node_modules/.pnpm -maxdepth 1 -name "*pdf-parse*" -exec sh -c 'cp -r -L {}/node_modules/pdf-parse /app/canvas-libs/pdf-parse' \; \
- && find /app/node_modules/.pnpm -maxdepth 1 -name "*pdfjs-dist*" -exec sh -c 'cp -r -L {}/node_modules/pdfjs-dist /app/canvas-libs/pdfjs-dist' \;
+ && find /app/node_modules/.pnpm -maxdepth 1 -name "*pdf-parse*" -exec sh -c 'cp -r -L {}/node_modules/pdf-parse/* /app/canvas-libs/pdf-parse/' \; \
+ && find /app/node_modules/.pnpm -maxdepth 1 -name "*pdfjs-dist*" -exec sh -c 'cp -r -L {}/node_modules/pdfjs-dist/* /app/canvas-libs/pdfjs-dist/' \; \
+ && find /app/.next/server/app/api -type d -exec sh -c 'cp /app/canvas-libs/pdf-parse/dist/pdf-parse/cjs/pdf.worker.mjs "$1/" 2>/dev/null || true' _ {} \;
 
 
 FROM oven/bun:1.3.14 AS bun-runtime
