@@ -93,9 +93,12 @@ function bootstrapAuthSchema(dbPath: string): void {
 
 bootstrapAuthSchema(AUTH_DB_PATH)
 
-// Allowlist opcional de identidade: se AUTH_ALLOWED_EMAIL estiver setado, apenas
-// os e-mails listados (lowercase) conseguem entrar — gate de single-user.
-const allowedEmails = (process.env.AUTH_ALLOWED_EMAIL || "")
+// Allowlist opcional de identidade: se LJS_AUTH_ALLOWED_EMAILS (ou AUTH_ALLOWED_EMAIL)
+// estiver setado, apenas os e-mails listados (lowercase, sem espaços) conseguem entrar.
+const allowedEmailsRaw =
+  process.env.LJS_AUTH_ALLOWED_EMAILS?.trim() || process.env.AUTH_ALLOWED_EMAIL?.trim() || ""
+
+const allowedEmails = allowedEmailsRaw
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean)
@@ -106,9 +109,22 @@ function isEmailAllowed(email?: string | null): boolean {
   return allowedEmails.includes(email.trim().toLowerCase())
 }
 
+const canonicalURL = getAuthBaseURL()
+const configuredTrustedOrigins = Array.from(
+  new Set([
+    canonicalURL,
+    "http://ljs.home",
+    "https://lia-job-search.tail050f5c.ts.net",
+    "http://localhost:3000",
+  ]),
+).filter(Boolean)
+
 export const auth = betterAuth({
-  baseURL: getAuthBaseURL(),
-  secret: process.env.AUTH_SECRET,
+  baseURL: canonicalURL,
+  secret:
+    process.env.BETTER_AUTH_SECRET ||
+    process.env.AUTH_SECRET ||
+    "lia-job-search-default-secret-change-in-production-32chars",
   database: new Database(AUTH_DB_PATH),
   // Sessão de 30 dias com renovação deslizante (após 1 dia).
   session: {
@@ -119,24 +135,21 @@ export const auth = betterAuth({
     enabled: false,
   },
   socialProviders: {
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID || "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
-    },
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      scope: ["openid", "profile", "email"],
     },
   },
   user: {
     additionalFields: {},
   },
   cookiePrefix: COOKIE_PREFIX,
-  trustedOrigins: [getAuthBaseURL()],
+  trustedOrigins: configuredTrustedOrigins,
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => {
+        before: async (user: { email: string }) => {
           if (!isEmailAllowed(user.email)) {
             return false
           }

@@ -14,7 +14,10 @@ const AUTH_DB_PATH = dataPath("auth", "auth.db")
 
 export const auth = betterAuth({
   baseURL: getAuthBaseURL(),
-  secret: process.env.AUTH_SECRET,
+  secret:
+    process.env.BETTER_AUTH_SECRET ||
+    process.env.AUTH_SECRET ||
+    "lia-job-search-default-secret-change-in-production-32chars",
   database: new Database(AUTH_DB_PATH),
   session: {
     expiresIn: 60 * 60 * 24 * 30,
@@ -24,20 +27,16 @@ export const auth = betterAuth({
     enabled: false,
   },
   socialProviders: {
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID || "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
-    },
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      scope: ["openid", "profile", "email"],
     },
   },
   user: {
     additionalFields: {},
   },
   cookiePrefix: COOKIE_PREFIX,
-  trustedOrigins: [getAuthBaseURL()],
 })
 
 export default auth
