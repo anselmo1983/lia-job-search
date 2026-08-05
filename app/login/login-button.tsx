@@ -50,27 +50,47 @@ const Spinner = ({ className }: { className?: string }) => (
 interface LoginButtonProps {
   callbackURL: string
   initialError?: string
+  oauthConfigured?: boolean
 }
 
-export function LoginButton({ callbackURL, initialError }: LoginButtonProps) {
+export function LoginButton({
+  callbackURL,
+  initialError,
+  oauthConfigured = true,
+}: LoginButtonProps) {
   const [status, setStatus] = useState<
-    "idle" | "loading" | "oauth_redirect" | "access_denied" | "auth_error"
+    | "idle"
+    | "loading"
+    | "oauth_redirect"
+    | "access_denied"
+    | "auth_error"
+    | "missing_credentials"
   >(
-    initialError === "ACCESS_DENIED" || initialError === "access_denied"
-      ? "access_denied"
-      : initialError
-        ? "auth_error"
-        : "idle",
+    !oauthConfigured
+      ? "missing_credentials"
+      : initialError === "ACCESS_DENIED" || initialError === "access_denied"
+        ? "access_denied"
+        : initialError
+          ? "auth_error"
+          : "idle",
   )
   const [errorMessage, setErrorMessage] = useState<string | null>(
-    initialError === "ACCESS_DENIED" || initialError === "access_denied"
-      ? "Acesso negado: sua conta Google não está autorizada no LJS."
-      : initialError
-        ? "Ocorreu um erro durante a autenticação. Tente novamente."
-        : null,
+    !oauthConfigured
+      ? "GOOGLE_CLIENT_ID e/ou GOOGLE_CLIENT_SECRET não estão configurados no servidor."
+      : initialError === "ACCESS_DENIED" || initialError === "access_denied"
+        ? "Acesso negado: sua conta Google não está autorizada no LJS."
+        : initialError
+          ? "Ocorreu um erro durante a autenticação. Tente novamente."
+          : null,
   )
 
   const handleGoogleSignIn = async () => {
+    if (!oauthConfigured) {
+      setStatus("missing_credentials")
+      setErrorMessage("GOOGLE_CLIENT_ID e/ou GOOGLE_CLIENT_SECRET não estão configurados no servidor.")
+      return
+    }
+
     try {
       setStatus("loading")
       setErrorMessage(null)
@@ -80,7 +100,9 @@ export function LoginButton({ callbackURL, initialError }: LoginButtonProps) {
         callbackURL,
       })
 
-      const targetUrl = (res as { data?: { url?: string }; url?: string })?.data?.url || (res as { url?: string })?.url
+      const targetUrl =
+        (res as { data?: { url?: string }; url?: string })?.data?.url ||
+        (res as { url?: string })?.url
 
       if (targetUrl) {
         setStatus("oauth_redirect")
@@ -89,40 +111,79 @@ export function LoginButton({ callbackURL, initialError }: LoginButtonProps) {
       }
 
       if (res?.error) {
+        const msg = res.error.message || ""
         if (
           res.error.code === "ACCESS_DENIED" ||
-          res.error.message?.includes("allowlist")
+          msg.includes("allowlist") ||
+          msg.includes("not authorized")
         ) {
           setStatus("access_denied")
           setErrorMessage("Acesso negado: conta não autorizada.")
+        } else if (
+          msg.includes("missing clientId") ||
+          msg.includes("missing clientSecret") ||
+          msg.includes("Client Id and Client Secret is required")
+        ) {
+          setStatus("missing_credentials")
+          setErrorMessage(
+            "Credenciais OAuth não configuradas. O administrador deve definir GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no ambiente do servidor.",
+          )
         } else {
           setStatus("auth_error")
-          setErrorMessage(res.error.message || "Falha na autenticação com o Google.")
+          setErrorMessage(msg || "Falha na autenticação com o Google.")
         }
       } else {
         setStatus("oauth_redirect")
       }
     } catch (err: unknown) {
       setStatus("auth_error")
-      setErrorMessage(err instanceof Error ? err.message : "Erro ao conectar com o serviço de autenticação.")
+      const msg = err instanceof Error ? err.message : ""
+      if (
+        msg.includes("missing clientId") ||
+        msg.includes("missing clientSecret") ||
+        msg.includes("Client Id and Client Secret is required")
+      ) {
+        setStatus("missing_credentials")
+        setErrorMessage(
+          "Credenciais OAuth não configuradas. O administrador deve definir GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no ambiente do servidor.",
+        )
+      } else {
+        setErrorMessage(msg || "Erro ao conectar com o serviço de autenticação.")
+      }
     }
   }
+
+  const missingCreds = status === "missing_credentials"
 
   return (
     <div className="space-y-4">
       {errorMessage && (
         <div
           role="alert"
-          className="rounded-lg border border-red-500/30 bg-red-950/40 p-3 text-xs text-red-300"
+          className={`rounded-lg border p-3 text-xs ${
+            missingCreds
+              ? "border-amber-500/30 bg-amber-950/40 text-amber-300"
+              : "border-red-500/30 bg-red-950/40 text-red-300"
+          }`}
         >
-          {errorMessage}
+          <p>{errorMessage}</p>
+          {missingCreds && (
+            <p className="mt-2 text-[10px] text-amber-400/70">
+              Defina as variáveis de ambiente no Vercel Dashboard → Settings →
+              Environment Variables e faça redeploy.
+            </p>
+          )}
         </div>
       )}
 
       <button
         type="button"
         onClick={handleGoogleSignIn}
-        disabled={status === "loading" || status === "oauth_redirect"}
+        disabled={
+          status === "loading" ||
+          status === "oauth_redirect" ||
+          missingCreds
+        }
         className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#3D474D]/40 bg-[#1C262C] px-4 py-3 text-sm font-medium text-[#D0D1CF] transition hover:bg-[#24323A] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50"
       >
         {status === "loading" || status === "oauth_redirect" ? (

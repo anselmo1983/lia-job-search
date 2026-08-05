@@ -17,11 +17,16 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      HOSTNAME: 0.0.0.0
+      HOSTNAME: 127.0.0.1
       LIA_DATA_DIR: /app/data
 
     volumes:
       - /opt/lia-job-search/data:/app/data
 
+    # Fase 01 — Hardening imediato do runtime
+    # Porta 3000 restrita estritamente ao localhost/proxy local
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
+
+    security_opt:
+      - "no-new-privileges:true"

@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server"
-import { promises as fs } from "node:fs"
-import path from "node:path"
-
-import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
+import crypto from "node:crypto"
+import { getDb } from "@/lib/db"
 import { requireSession } from "@/lib/auth/server"
-
-const jobsPath = dataPath("job_scraper", "seen_jobs.json")
 
 function canonicalJobUrl(input: string): string {
   try {
@@ -39,95 +35,124 @@ function canonicalJobUrl(input: string): string {
   }
 }
 
-async function readJobs(): Promise<any[]> {
-  try {
-    const content = await fs.readFile(jobsPath, "utf8")
-    const data = JSON.parse(content)
-    if (Array.isArray(data)) return data
-    if (data.jobs) return data.jobs
-    if (data.seen) return Object.values(data.seen)
-    return []
-  } catch { return [] }
-}
-
-async function writeJobs(jobs: any[]) {
-  await writeAtomic(jobsPath, jobs)
-}
-
 export async function GET() {
   const unauthorized = await requireSession()
   if (unauthorized) return unauthorized
-  const jobs = await readJobs()
-  return NextResponse.json({ jobs, total: jobs.length })
+
+  try {
+    const db = getDb()
+    const rows = db.prepare("SELECT * FROM jobs ORDER BY discovered_at DESC").all() as any[]
+
+    const jobs = rows.map((r) => ({
+      id: r.id,
+      external_id: r.external_id,
+      source: r.source,
+      url: r.source_url,
+      company: r.company,
+      title: r.title,
+      location: r.location,
+      work_mode: r.work_mode,
+      description: r.description,
+      salary: r.salary_text,
+      status: r.status,
+      fit: r.fit,
+      score: r.score,
+      strengths: r.strengths ? JSON.parse(r.strengths) : [],
+      gaps: r.gaps ? JSON.parse(r.gaps) : [],
+      reasoning: r.reasoning,
+      date: r.published_at || r.discovered_at,
+    }))
+
+    return NextResponse.json({ jobs, total: jobs.length })
+  } catch (error) {
+    return NextResponse.json({ error: "Falha ao consultar vagas" }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
   const unauthorized = await requireSession()
   if (unauthorized) return unauthorized
+
   try {
     const body = await request.json()
-    const jobs = await readJobs()
-    
+    const db = getDb()
+
     if (body.action === "add") {
-      const incomingUrl =
-        typeof body.url === "string"
-          ? canonicalJobUrl(body.url)
-          : ""
+      const incomingUrl = typeof body.url === "string" ? canonicalJobUrl(body.url) : ""
+      const company = body.company || "Desconhecida"
+      const title = body.title || "Vaga Sem Título"
+      const contentHash = crypto.createHash("sha256").update(`${company}:${title}:${incomingUrl}`).digest("hex")
 
       if (incomingUrl) {
-        const duplicate = jobs.find(
-          (job: any) =>
-            typeof job.url === "string" &&
-            canonicalJobUrl(job.url) === incomingUrl,
-        )
-
+        const duplicate = db.prepare("SELECT * FROM jobs WHERE source_url = ? OR content_hash = ?").get(incomingUrl, contentHash) as any
         if (duplicate) {
           return NextResponse.json({
             success: true,
             duplicate: true,
             job: duplicate,
-            total: jobs.length,
           })
         }
       }
 
-      const newJob = {
-        id: body.id || crypto.randomUUID(),
-        title: body.title,
-        company: body.company,
-        location: body.location || "",
-        url: body.url || "",
-        description: body.description || "",
-        status: "discovered",
-        fit: "unrated",
-        score: null,
-        strengths: [],
-        gaps: [],
-        reasoning: "",
-        date: body.date || new Date().toISOString().split("T")[0],
-        source: body.source || "manual",
-      }
-      jobs.push(newJob)
-      await writeJobs(jobs)
-      return NextResponse.json({ success: true, duplicate: false, job: newJob, total: jobs.length })
+      const id = body.id || crypto.randomUUID()
+      db.prepare(`
+        INSERT INTO jobs (id, external_id, source, source_url, company, title, location, work_mode, description, salary_text, published_at, content_hash, status, fit, score, strengths, gaps, reasoning)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        body.external_id || null,
+        body.source || "manual",
+        incomingUrl || body.url || "",
+        company,
+        title,
+        body.location || null,
+        body.work_mode || null,
+        body.description || null,
+        body.salary || body.salary_text || null,
+        body.date || new Date().toISOString(),
+        contentHash,
+        "discovered",
+        "unrated",
+        null,
+        null,
+        null,
+        null
+      )
+
+      return NextResponse.json({ success: true, duplicate: false, id })
     }
-    
+
     if (body.action === "update") {
-      const index = jobs.findIndex((j: any) => j.id === body.id || j.key === body.id)
-      if (index >= 0) {
-        jobs[index] = { ...jobs[index], ...body.updates }
-        await writeJobs(jobs)
-        return NextResponse.json({ success: true, job: jobs[index] })
+      const { id, updates } = body
+      if (!id || !updates) return NextResponse.json({ error: "ID e updates são obrigatórios" }, { status: 400 })
+
+      const fields: string[] = []
+      const values: any[] = []
+
+      if (updates.status !== undefined) { fields.push("status = ?"); values.push(updates.status) }
+      if (updates.fit !== undefined) { fields.push("fit = ?"); values.push(updates.fit) }
+      if (updates.score !== undefined) { fields.push("score = ?"); values.push(updates.score) }
+      if (updates.strengths !== undefined) { fields.push("strengths = ?"); values.push(JSON.stringify(updates.strengths)) }
+      if (updates.gaps !== undefined) { fields.push("gaps = ?"); values.push(JSON.stringify(updates.gaps)) }
+      if (updates.reasoning !== undefined) { fields.push("reasoning = ?"); values.push(updates.reasoning) }
+      if (updates.title !== undefined) { fields.push("title = ?"); values.push(updates.title) }
+      if (updates.company !== undefined) { fields.push("company = ?"); values.push(updates.company) }
+
+      fields.push("updated_at = datetime('now')")
+      values.push(id)
+
+      if (fields.length > 1) {
+        db.prepare(`UPDATE jobs SET ${fields.join(", ")} WHERE id = ?`).run(...values)
       }
-      return NextResponse.json({ error: "Vaga não encontrada" }, { status: 404 })
+
+      return NextResponse.json({ success: true })
     }
-    
+
     if (body.action === "delete") {
-      const filtered = jobs.filter((j: any) => j.id !== body.id && j.key !== body.id)
-      await writeJobs(filtered)
-      return NextResponse.json({ success: true, total: filtered.length })
+      db.prepare("DELETE FROM jobs WHERE id = ?").run(body.id)
+      return NextResponse.json({ success: true })
     }
-    
+
     return NextResponse.json({ error: "Ação inválida" }, { status: 400 })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })

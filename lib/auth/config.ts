@@ -21,3 +21,10 @@ export function getAuthBaseURL(): string {
   if (fromEnv) return fromEnv.replace(/\/+$/, "")
   return "http://localhost:3000"
 }
+
+/** Check whether Google OAuth credentials are configured in the environment. */
+export function hasGoogleOAuthCredentials(): boolean {
+  return Boolean(
+    process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim(),
+  )
+}

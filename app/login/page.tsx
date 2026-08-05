@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
+import { hasGoogleOAuthCredentials } from "@/lib/auth/config"
 import { getServerSession } from "@/lib/auth/server"
 import { LoginButton } from "@/app/login/login-button"
 
@@ -18,6 +19,7 @@ export default async function LoginPage({
 
   const { next, error } = await searchParams
   const callbackURL = typeof next === "string" && next.startsWith("/") ? next : "/"
+  const oauthConfigured = hasGoogleOAuthCredentials()
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0E1418] p-6 text-[#F2F4F3]">
@@ -37,7 +39,11 @@ export default async function LoginPage({
           </p>
 
           <div className="mt-6">
-            <LoginButton callbackURL={callbackURL} initialError={error} />
+            <LoginButton
+              callbackURL={callbackURL}
+              initialError={error}
+              oauthConfigured={oauthConfigured}
+            />
           </div>
 
           <p className="mt-6 text-center text-xs text-[#6B7478]">
