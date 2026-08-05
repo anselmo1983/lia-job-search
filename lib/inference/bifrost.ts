@@ -5,35 +5,13 @@ import "server-only"
  *
  * Autoridade de inferência da plataforma. TODAS as chamadas de IA passam por
  * aqui, mantendo a arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
- *
- * Provider/model routing pertence ao Bifrost — nenhuma rota operacional pode
- * chamar OpenAI/Anthropic/Moonshot/DeepSeek diretamente.
- *
- * CONTRATO CANÔNICO DE ENV (única fonte de verdade, sem aliases):
- *   BIFROST_BASE_URL         ex: https://bifrost.ct109.example.com
- *   BIFROST_VIRTUAL_KEY      VK de acesso ao CT109 (server-side only, nunca enviada ao navegador)
- *   BIFROST_MODEL_DEFAULT    modelo padrão (extração de perfil, avaliação)
- *   BIFROST_MODEL_REVIEW     modelo de revisão (segunda passada)
- *   LIA_DATA_DIR             diretório de dados (container: /app/data; host: /opt/lia-job-search/data;
- *                            bind: -v /opt/lia-job-search/data:/app/data; nunca o caminho do host no container)
- *   APP_COMMIT               commit/tag do build (informativo)
- *
- * Deployment canônico do CT223: /opt/lia-job-search/runtime.env
- *   - modo 0600, owner root:root
- *   - .env.example é APENAS template de desenvolvimento
- *
- * Contrato esperado do CT109 (compatível com OpenAI):
- *   GET  {base}/health                → 200 se operacional
- *   GET  {base}/v1/models             → 200 se operacional
- *   POST {base}/v1/chat/completions   → { choices: [{ message: { content } }] }
- *
- * Este módulo NÃO deve ser importado de componentes client ("use client").
  */
 
 const AUTHORITY = "CT109 Bifrost"
 const CREDENTIAL_MODE = "server-side"
 const HEALTH_TIMEOUT_MS = 5_000
 const CHAT_TIMEOUT_MS = 120_000
+const APPLICATION_NAME = "lia-job-search"
 
 export interface BifrostStatus {
   connected: boolean
@@ -49,16 +27,23 @@ export interface BifrostMessage {
   content: string
 }
 
+export type BifrostWorkloadOrigin = "app" | "user"
+
+export interface BifrostMetadata {
+  application?: string
+  workload: string
+  origin: BifrostWorkloadOrigin
+  job_id?: string
+  [key: string]: string | number | boolean | undefined
+}
+
 export interface CompleteOptions {
-  /** Modelo a usar; omite para usar o default do servidor. */
   model?: string
-  /** Prompt de sistema. */
   system?: string
-  /** Mensagens adicionais (role user/assistant). */
   messages?: BifrostMessage[]
   maxTokens?: number
-  /** Força resposta em JSON válido. */
   json?: boolean
+  metadata?: BifrostMetadata
 }
 
 export type ChatMessage = {
@@ -70,9 +55,11 @@ export type BifrostChatRequest = {
   model?: string
   messages: ChatMessage[]
   temperature?: number
+  max_tokens?: number
   response_format?: {
     type: "json_object" | "text"
   }
+  metadata?: BifrostMetadata
 }
 
 export type BifrostChatResponse = {
@@ -81,6 +68,22 @@ export type BifrostChatResponse = {
       content?: string | null
     }
   }>
+}
+
+export class BifrostHttpError extends Error {
+  readonly status: number
+  readonly responseBody: string
+
+  constructor(status: number, responseBody: string) {
+    super(`Bifrost (CT109) retornou ${status}: ${responseBody.slice(0, 300)}`)
+    this.name = "BifrostHttpError"
+    this.status = status
+    this.responseBody = responseBody
+  }
+}
+
+export function isBifrostHttpError(error: unknown): error is BifrostHttpError {
+  return error instanceof BifrostHttpError
 }
 
 export function isConfigured(): boolean {
@@ -92,12 +95,10 @@ export function bifrostConfigured(): boolean {
 }
 
 export function getDefaultModel(): string | undefined {
-  // Único valor válido: BIFROST_MODEL_DEFAULT. Nunca inventar modelo.
   return process.env.BIFROST_MODEL_DEFAULT
 }
 
 export function getReviewModel(): string | undefined {
-  // Único valor válido: BIFROST_MODEL_REVIEW. Nunca inventar modelo.
   return process.env.BIFROST_MODEL_REVIEW
 }
 
@@ -113,11 +114,27 @@ function getHeaders(): Record<string, string> {
   return headers
 }
 
+function canonicalMetadata(metadata?: BifrostMetadata): Record<string, string | number | boolean> | undefined {
+  if (!metadata) return undefined
+
+  const clean: Record<string, string | number | boolean> = {
+    application: metadata.application || APPLICATION_NAME,
+    workload: metadata.workload,
+    origin: metadata.origin,
+  }
+
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value !== undefined && key !== "application") clean[key] = value
+  }
+
+  return clean
+}
+
 /** Primitiva única de requisição HTTP do Bifrost */
 async function requestBifrost(
   endpoint: string,
   method: "GET" | "POST",
-  body?: any,
+  body?: unknown,
   timeoutMs: number = CHAT_TIMEOUT_MS
 ): Promise<any> {
   if (!isConfigured()) {
@@ -144,13 +161,11 @@ async function requestBifrost(
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "")
-      throw new Error(`Bifrost (CT109) retornou ${res.status}: ${errText.slice(0, 300)}`)
+      throw new BifrostHttpError(res.status, errText)
     }
 
     const text = await res.text()
-    if (!text.trim()) {
-      return null
-    }
+    if (!text.trim()) return null
 
     try {
       return JSON.parse(text)
@@ -162,7 +177,6 @@ async function requestBifrost(
   }
 }
 
-/** Verifica conectividade com o CT109 e expõe apenas informações não secretas. */
 export async function getStatus(): Promise<BifrostStatus> {
   const base = {
     authority: AUTHORITY,
@@ -183,13 +197,10 @@ export async function getStatus(): Promise<BifrostStatus> {
     await requestBifrost("/health", "GET", undefined, HEALTH_TIMEOUT_MS)
     return { ...base, connected: true }
   } catch {
-    // tenta endpoint v1/models
     try {
       await requestBifrost("/v1/models", "GET", undefined, HEALTH_TIMEOUT_MS)
       return { ...base, connected: true }
-    } catch {
-      // sem conectividade
-    }
+    } catch {}
   }
 
   return { ...base, connected: false, message: "Não foi possível conectar ao Bifrost (CT109)" }
@@ -216,6 +227,7 @@ async function chatCompletions(opts: CompleteOptions): Promise<string> {
     messages,
     max_tokens: opts.maxTokens ?? 2000,
     ...(opts.json ? { response_format: { type: "json_object" } } : {}),
+    ...(opts.metadata ? { metadata: canonicalMetadata(opts.metadata) } : {}),
   }
 
   const data = await requestBifrost("/v1/chat/completions", "POST", payload, CHAT_TIMEOUT_MS)
@@ -226,12 +238,10 @@ async function chatCompletions(opts: CompleteOptions): Promise<string> {
   return content
 }
 
-/** Compleção de texto livre (CV, carta, etc.). */
 export async function completeText(opts: CompleteOptions): Promise<string> {
   return chatCompletions({ ...opts, json: false })
 }
 
-/** Compleção que valida e retorna JSON. */
 export async function completeJson(opts: CompleteOptions): Promise<unknown> {
   const raw = await chatCompletions({ ...opts, json: true })
   const match = raw.match(/\{[\s\S]*\}/)
@@ -243,13 +253,10 @@ export async function completeJson(opts: CompleteOptions): Promise<unknown> {
   }
 }
 
-/** Compatibilidade para chamadas estruturadas chat */
 export async function bifrostChat(
   request: BifrostChatRequest,
 ): Promise<BifrostChatResponse> {
-  const model =
-    request.model ||
-    process.env.BIFROST_MODEL_DEFAULT?.trim()
+  const model = request.model || process.env.BIFROST_MODEL_DEFAULT?.trim()
 
   if (!model) {
     throw new Error("No Bifrost application model alias configured")
@@ -258,6 +265,7 @@ export async function bifrostChat(
   const payload = {
     ...request,
     model,
+    ...(request.metadata ? { metadata: canonicalMetadata(request.metadata) } : {}),
   }
 
   const response = await requestBifrost("/v1/chat/completions", "POST", payload, CHAT_TIMEOUT_MS)
