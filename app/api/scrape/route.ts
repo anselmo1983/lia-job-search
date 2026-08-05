@@ -82,7 +82,7 @@ function isPortalEnabled(portal: Portal): boolean {
 
 function runClijson(portal: Portal, query: string, location: string): { results: Record<string, unknown>[]; failed: boolean } {
   const args = ["run", portal.cliPath, "search", ...portal.buildArgs(query, location), "--format", "json"]
-  const result = spawnSync("bun", args, {
+  let result = spawnSync("bun", args, {
     cwd: process.cwd(),
     timeout: 25_000,
     encoding: "utf-8",
@@ -90,6 +90,17 @@ function runClijson(portal: Portal, query: string, location: string): { results:
     // directly for clean signal handling.
     shell: process.platform === "win32",
   })
+
+  if (result.error || result.status !== 0) {
+    const tsxArgs = ["tsx", portal.cliPath, "search", ...portal.buildArgs(query, location), "--format", "json"]
+    result = spawnSync("npx", tsxArgs, {
+      cwd: process.cwd(),
+      timeout: 25_000,
+      encoding: "utf-8",
+      shell: process.platform === "win32",
+    })
+  }
+
   if (result.error || result.status !== 0) return { results: [], failed: true }
   try {
     const parsed = JSON.parse(result.stdout)
@@ -314,11 +325,22 @@ export async function POST(request: Request) {
       location?: string
     } = await request.json()
 
-    const query = (body.query ?? "").trim()
-    const location = (body.location ?? "").trim()
+    let query = (body.query ?? "").trim()
+    let location = (body.location ?? "").trim()
 
     if (!query) {
-      return NextResponse.json({ error: "Parâmetro 'query' é obrigatório" }, { status: 400 })
+      try {
+        const jsonProfilePath = dataPath("profile", "profile.json")
+        if (existsSync(jsonProfilePath)) {
+          const parsed = JSON.parse(readFileSync(jsonProfilePath, "utf-8"))
+          query = parsed.role || (Array.isArray(parsed.skills?.primary) ? parsed.skills.primary.join(" ") : parsed.skills?.primary) || parsed.title || ""
+          if (!location && parsed.location) location = String(parsed.location)
+        }
+      } catch {}
+    }
+
+    if (!query) {
+      query = "desenvolvedor software"
     }
 
     // --- Collect results from all enabled portals ---------------------------
