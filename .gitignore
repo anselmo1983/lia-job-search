@@ -107,3 +107,6 @@ upskill/*.md
 .vercel
 .env*
 !.env.example
+
+# PVE runtime secrets - never commit
+/deploy/pve/runtime-env/runtime.env
