@@ -15,7 +15,11 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth/config"
  * deploy) permanecem públicos.
  */
 export function middleware(request: NextRequest) {
-  const hasSessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
+  const hasSessionCookie =
+    request.cookies.get(SESSION_COOKIE_NAME)?.value ||
+    request.cookies.get(`__Secure-${SESSION_COOKIE_NAME}`)?.value ||
+    request.cookies.get("better-auth.session_token")?.value ||
+    request.cookies.get("__Secure-better-auth.session_token")?.value
 
   if (!hasSessionCookie) {
     const url = new URL("/login", request.url)
