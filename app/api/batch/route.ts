@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+export const dynamic = "force-dynamic"
 import { completeJson, getDefaultModel } from "@/lib/inference/bifrost"
 import { requireSession } from "@/lib/auth/server"
 

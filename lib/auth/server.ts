@@ -1,4 +1,6 @@
 import "server-only"
+import fs from "node:fs"
+import path from "node:path"
 import Database from "better-sqlite3"
 import { betterAuth } from "better-auth"
 import { headers } from "next/headers"
@@ -22,8 +24,20 @@ import { COOKIE_PREFIX, getAuthBaseURL } from "@/lib/auth/config"
 // garante que o primeiro boot sem banco pré-criado ainda funcione.
 const AUTH_DB_PATH = dataPath("auth", "auth.db")
 
+function ensureDbDir(dbPath: string): void {
+  try {
+    const dir = path.dirname(dbPath)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+  } catch {}
+}
+
+ensureDbDir(AUTH_DB_PATH)
+
 function bootstrapAuthSchema(dbPath: string): void {
   try {
+    ensureDbDir(dbPath)
     const db = new Database(dbPath)
     db.pragma("journal_mode = WAL")
     db.exec(`
