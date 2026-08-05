@@ -1,4 +1,4 @@
-import { CandidateProfile } from "@/lib/db/profile-schema"
+import { CandidateProfile, getProfileSkillsList } from "@/lib/db/profile-schema"
 import { getDb } from "@/lib/db"
 
 export interface SubScores {
@@ -6,13 +6,18 @@ export interface SubScores {
   titleScore: number
   locationScore: number
   sectorScore: number
+  energyScore: number
 }
+
+export type ActionRecommendation = "apply_immediately" | "tailor_and_apply" | "skip"
 
 export interface FitResult {
   score: number
   fit: "strong" | "moderate" | "weak"
+  recommendation: ActionRecommendation
   strengths: string[]
   gaps: string[]
+  dealbreakersTriggered: string[]
   reasoning: string
   subScores: SubScores
 }
@@ -30,13 +35,10 @@ export function calculateJobFit(job: JobInput, profile: CandidateProfile): FitRe
 
   const strengths: string[] = []
   const gaps: string[] = []
+  const dealbreakersTriggered: string[] = []
 
-  // 1. Skill Overlap (Peso 40%)
-  const allProfileSkills = [
-    ...profile.skills.primary,
-    ...profile.skills.secondary,
-    ...profile.skills.tools,
-  ]
+  // 1. Skill & Evidence Overlap (Peso 40%)
+  const allProfileSkills = getProfileSkillsList(profile)
 
   let skillMatches = 0
   for (const skill of allProfileSkills) {
@@ -50,7 +52,7 @@ export function calculateJobFit(job: JobInput, profile: CandidateProfile): FitRe
   }
 
   const maxSkillsToCheck = Math.max(allProfileSkills.length, 1)
-  const skillScore = Math.min((skillMatches / maxSkillsToCheck) * 100 * 2, 100) // Normaliza proporção
+  const skillScore = Math.min((skillMatches / maxSkillsToCheck) * 100 * 2, 100)
 
   // Identifica potenciais gaps
   const commonReqs = ["aws", "docker", "kubernetes", "python", "react", "node", "typescript", "java", "sql", "graphql"]
@@ -62,11 +64,11 @@ export function calculateJobFit(job: JobInput, profile: CandidateProfile): FitRe
     }
   }
 
-  // 2. Role & Title Match (Peso 30%)
+  // 2. Role & Title Match (Peso 25%)
   let titleScore = 0
   const targetRoles = profile.targetPreferences.targetRoles.length > 0
     ? profile.targetPreferences.targetRoles
-    : [profile.identity.headline]
+    : [profile.identity.headline].filter(Boolean)
 
   for (const targetRole of targetRoles) {
     if (!targetRole) continue
@@ -89,8 +91,8 @@ export function calculateJobFit(job: JobInput, profile: CandidateProfile): FitRe
     }
   }
 
-  // 3. Location & Work Mode (Peso 20%)
-  let locationScore = 70 // Padrão razoável se não restrito
+  // 3. Location & Work Mode (Peso 15%)
+  let locationScore = 70
   const locText = (job.location || "").toLowerCase()
   const isRemoteJob = locText.includes("remoto") || locText.includes("remote") || locText.includes("home office")
 
@@ -100,18 +102,9 @@ export function calculateJobFit(job: JobInput, profile: CandidateProfile): FitRe
   } else if (profile.identity.location && locText.includes(profile.identity.location.toLowerCase())) {
     locationScore = 90
     strengths.push(`Localização (${job.location}) compatível`)
-  } else {
-    // Verifica dealbreakers
-    for (const dealbreaker of profile.targetPreferences.dealbreakers) {
-      if (dealbreaker.toLowerCase().includes("presencial") && (locText.includes("onsite") || locText.includes("presencial"))) {
-        locationScore = 20
-        gaps.push("Vaga exige presencial (viola restrição estipulada)")
-        break
-      }
-    }
   }
 
-  // 4. Sector & Growth Match (Peso 10%)
+  // 4. Sector & Domain Match (Peso 10%)
   let sectorScore = 50
   for (const sector of profile.targetPreferences.targetSectors) {
     if (sector && fullText.includes(sector.toLowerCase())) {
@@ -121,31 +114,86 @@ export function calculateJobFit(job: JobInput, profile: CandidateProfile): FitRe
     }
   }
 
-  // Pontuação Ponderada Final (0-100)
-  const finalScore = Math.round(
-    skillScore * 0.4 + titleScore * 0.3 + locationScore * 0.2 + sectorScore * 0.1
-  )
+  // 5. Energy & Activity Fit (Peso 10%)
+  let energyScore = 60
+  const energizing = profile.preferences.energizingActivities || []
+  const draining = profile.preferences.drainingActivities || []
 
-  let fit: "strong" | "moderate" | "weak" = "weak"
-  if (finalScore >= 70) {
-    fit = "strong"
-  } else if (finalScore >= 45) {
-    fit = "moderate"
+  for (const act of energizing) {
+    if (act && fullText.includes(act.toLowerCase())) {
+      energyScore = Math.min(100, energyScore + 25)
+      strengths.push(`Atividade energizante presente (${act})`)
+    }
   }
 
-  const reasoning = `Pontuação final de ${finalScore}/100. Fit classificado como ${fit.toUpperCase()}. Alinhamento de competências (${Math.round(skillScore)}%), compatibilidade de título (${Math.round(titleScore)}%) e aderência de localização/modalidade (${Math.round(locationScore)}%).`
+  for (const act of draining) {
+    if (act && fullText.includes(act.toLowerCase())) {
+      energyScore = Math.max(0, energyScore - 30)
+      gaps.push(`Atividade desgastante identificada (${act})`)
+    }
+  }
+
+  // 6. Dealbreaker Checks
+  const dealbreakerList = [
+    ...(profile.constraints.dealbreakers || []),
+    ...(profile.targetPreferences.dealbreakers || []),
+  ]
+
+  for (const dealbreaker of dealbreakerList) {
+    if (!dealbreaker) continue
+    const dbLower = dealbreaker.toLowerCase()
+
+    if (dbLower.includes("presencial") && (locText.includes("onsite") || locText.includes("presencial"))) {
+      dealbreakersTriggered.push("Vaga exige trabalho presencial")
+      gaps.push("Viola restrição de trabalho presencial")
+    } else if (fullText.includes(dbLower)) {
+      dealbreakersTriggered.push(`Viola restrição estipulada: "${dealbreaker}"`)
+      gaps.push(`Dealbreaker ativado: ${dealbreaker}`)
+    }
+  }
+
+  // Pontuação Ponderada Final (0-100)
+  let finalScore = Math.round(
+    skillScore * 0.4 + titleScore * 0.25 + locationScore * 0.15 + sectorScore * 0.1 + energyScore * 0.1
+  )
+
+  if (dealbreakersTriggered.length > 0) {
+    finalScore = Math.min(finalScore, 30)
+  }
+
+  let fit: "strong" | "moderate" | "weak" = "weak"
+  let recommendation: ActionRecommendation = "skip"
+
+  if (dealbreakersTriggered.length > 0) {
+    fit = "weak"
+    recommendation = "skip"
+  } else if (finalScore >= 75) {
+    fit = "strong"
+    recommendation = "apply_immediately"
+  } else if (finalScore >= 45) {
+    fit = "moderate"
+    recommendation = "tailor_and_apply"
+  } else {
+    fit = "weak"
+    recommendation = "skip"
+  }
+
+  const reasoning = `Pontuação multidimensional: ${finalScore}/100. Classificação: ${fit.toUpperCase()}. Recomendação: ${recommendation.toUpperCase()}. Skills (${Math.round(skillScore)}%), Título (${Math.round(titleScore)}%), Localização (${Math.round(locationScore)}%), Setor (${Math.round(sectorScore)}%), Energia (${Math.round(energyScore)}%).`
 
   return {
     score: finalScore,
     fit,
+    recommendation,
     strengths: Array.from(new Set(strengths)),
     gaps: Array.from(new Set(gaps)),
+    dealbreakersTriggered: Array.from(new Set(dealbreakersTriggered)),
     reasoning,
     subScores: {
       skillScore: Math.round(skillScore),
       titleScore: Math.round(titleScore),
       locationScore: Math.round(locationScore),
       sectorScore: Math.round(sectorScore),
+      energyScore: Math.round(energyScore),
     },
   }
 }
@@ -180,3 +228,58 @@ export function evaluateAndSaveJobFit(jobId: string, profile: CandidateProfile):
 
   return fitResult
 }
+
+export function batchEvaluateJobs(
+  jobIds?: string[],
+  profile?: CandidateProfile
+): { evaluatedCount: number; results: Array<{ jobId: string; fitResult: FitResult }> } {
+  const db = getDb()
+  if (!profile) {
+    const { getProfileSync } = require("@/lib/db/profile-sync")
+    profile = getProfileSync()
+  }
+
+  if (!profile) {
+    return { evaluatedCount: 0, results: [] }
+  }
+
+  let jobRows: any[] = []
+  if (jobIds && jobIds.length > 0) {
+    const placeholders = jobIds.map(() => "?").join(",")
+    jobRows = db.prepare(`SELECT * FROM jobs WHERE id IN (${placeholders})`).all(...jobIds)
+  } else {
+    jobRows = db.prepare("SELECT * FROM jobs ORDER BY created_at DESC").all()
+  }
+
+  const results: Array<{ jobId: string; fitResult: FitResult }> = []
+
+  for (const jobRow of jobRows) {
+    const fitResult = calculateJobFit(
+      {
+        title: jobRow.title,
+        description: jobRow.description || "",
+        company: jobRow.company,
+        location: jobRow.location,
+      },
+      profile
+    )
+
+    db.prepare(`
+      UPDATE jobs
+      SET score = ?, fit = ?, strengths = ?, gaps = ?, reasoning = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      fitResult.score,
+      fitResult.fit,
+      JSON.stringify(fitResult.strengths),
+      JSON.stringify(fitResult.gaps),
+      fitResult.reasoning,
+      jobRow.id
+    )
+
+    results.push({ jobId: jobRow.id, fitResult })
+  }
+
+  return { evaluatedCount: results.length, results }
+}
+

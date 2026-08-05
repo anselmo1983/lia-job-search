@@ -1,4 +1,5 @@
 import { CandidateProfile } from "@/lib/db/profile-schema"
+import { renderTailoredLatexCv, renderTailoredLatexCoverLetter } from "@/lib/services/latex-generator"
 
 export interface ExtractedKeywords {
   technicalSkills: string[]
@@ -13,6 +14,14 @@ export interface AtsMatchReport {
   matchedKeywords: string[]
   missingKeywords: string[]
   keywordCoverageDetails: Array<{ keyword: string; matched: boolean; category: string }>
+}
+
+export interface TailoredDocumentResult {
+  docType: "cv" | "cover_letter" | "both"
+  format: "latex" | "markdown" | "json"
+  atsMatch: AtsMatchReport
+  cvContent?: string
+  coverLetterContent?: string
 }
 
 const COMMON_TECH_KEYWORDS = [
@@ -132,3 +141,46 @@ ${JSON.stringify(profile, null, 2)}
 Por favor, gere o currículo otimizado destacando as conquistas mais relevantes.`,
   }
 }
+
+export function generateTailoredDocument(
+  job: { title: string; company: string; description?: string },
+  profile: CandidateProfile,
+  docType: "cv" | "cover_letter" | "both" = "cv",
+  format: "latex" | "markdown" | "json" = "latex"
+): TailoredDocumentResult {
+  const keywords = extractJobKeywords(job.description || "")
+  const atsMatch = calculateAtsKeywordMatch(keywords, profile)
+
+  let cvContent: string | undefined
+  let coverLetterContent: string | undefined
+
+  if (docType === "cv" || docType === "both") {
+    if (format === "latex") {
+      cvContent = renderTailoredLatexCv(profile, job)
+    } else if (format === "markdown") {
+      cvContent = `# ${profile.identity.fullName} - CV (${job.title} @ ${job.company})\n\n## Summary\n${profile.identity.summary}\n\n## Experience\n` +
+        profile.experiences.map((e) => `- **${e.role}** (${e.startDate}-${e.endDate}) - ${e.company}\n  ${e.highlights.join("\n  ")}`).join("\n")
+    } else {
+      cvContent = JSON.stringify({ profile, job, atsMatch }, null, 2)
+    }
+  }
+
+  if (docType === "cover_letter" || docType === "both") {
+    if (format === "latex") {
+      coverLetterContent = renderTailoredLatexCoverLetter(profile, job)
+    } else if (format === "markdown") {
+      coverLetterContent = `# Cover Letter for ${job.title} at ${job.company}\n\nDear Hiring Manager,\n\nI am writing to express my strong interest in the ${job.title} role at ${job.company}...\n`
+    } else {
+      coverLetterContent = JSON.stringify({ coverLetter: true, profile, job }, null, 2)
+    }
+  }
+
+  return {
+    docType,
+    format,
+    atsMatch,
+    cvContent,
+    coverLetterContent,
+  }
+}
+

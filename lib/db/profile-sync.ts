@@ -5,7 +5,7 @@ import { dataPath } from "@/lib/runtime/data-directory"
 import { CandidateProfile, CandidateProfileSchema } from "@/lib/db/profile-schema"
 
 function renderClaudeMdSection(profile: CandidateProfile): string {
-  const { identity, targetPreferences, skills, experiences, education, certifications } = profile
+  const { identity, targetPreferences, preferences, constraints, skills, experiences, projects, education, certifications } = profile
 
   const languagesText = identity.languages.map((l) => `${l.language} (${l.level})`).join(", ") || "N/A"
   const primarySkills = skills.primary.join(", ") || "N/A"
@@ -24,27 +24,56 @@ function renderClaudeMdSection(profile: CandidateProfile): string {
       }).join("\n")
     : "- N/A"
 
+  const projLines = (projects && projects.length > 0)
+    ? projects.map((p) => {
+        const stack = p.techStack.length > 0 ? ` [${p.techStack.join(", ")}]` : ""
+        const bullets = p.highlights.map((h) => `  - ${h}`).join("\n")
+        return `- **${p.name}** (${p.role || "Projeto"})${stack}\n  ${p.description}\n${bullets}`
+      }).join("\n")
+    : "- N/A"
+
   const certLines = certifications && certifications.length > 0
     ? certifications.map((c) => `- **${c.name}**${c.hours ? ` - ${c.hours}h` : ""} - concluído em ${c.completedDate}`).join("\n")
+    : "- N/A"
+
+  const evidenceSkillLines = (skills.evidences && skills.evidences.length > 0)
+    ? skills.evidences.map((e) => {
+        const ev = e.evidence.length > 0 ? `: ${e.evidence.join("; ")}` : ""
+        const ver = e.verified ? " [verificado]" : ""
+        return `- **${e.skill}**${e.proficiency ? ` (${e.proficiency})` : ""}${ver}${ev}`
+      }).join("\n")
+    : "- N/A"
+
+  const energizingLines = (preferences.energizingActivities && preferences.energizingActivities.length > 0)
+    ? preferences.energizingActivities.map((a) => `- ${a}`).join("\n")
+    : "- N/A"
+
+  const drainingLines = (preferences.drainingActivities && preferences.drainingActivities.length > 0)
+    ? preferences.drainingActivities.map((a) => `- ${a}`).join("\n")
+    : "- N/A"
+
+  const transferableLines = (preferences.transferableSkills && preferences.transferableSkills.length > 0)
+    ? preferences.transferableSkills.map((t) => `- ${t}`).join("\n")
     : "- N/A"
 
   const sectorsLines = targetPreferences.targetSectors.length > 0
     ? targetPreferences.targetSectors.map((s) => `- ${s}`).join("\n")
     : "- N/A"
 
-  const dealbreakerLines = targetPreferences.dealbreakers.length > 0
-    ? targetPreferences.dealbreakers.map((d) => `- ${d}`).join("\n")
+  const dealbreakerLines = (constraints.dealbreakers.length > 0 ? constraints.dealbreakers : targetPreferences.dealbreakers).length > 0
+    ? (constraints.dealbreakers.length > 0 ? constraints.dealbreakers : targetPreferences.dealbreakers).map((d) => `- ${d}`).join("\n")
     : "- N/A"
 
   return `## Candidate Profile
 
 ### Identity
 - **Name:** ${identity.fullName}
-- **Location:** ${identity.location || "N/A"} (${targetPreferences.commuteConstraints || "Sem restrições"})
+- **Location:** ${identity.location || "N/A"} (${constraints.commute || targetPreferences.commuteConstraints || "Sem restrições"})
 - **Email:** ${identity.email}
 - **Phone:** ${identity.phone || "N/A"}
 - **Languages:** ${languagesText}
 - **Status:** ${identity.employmentStatus}
+- **Notice Period:** ${constraints.noticePeriod || "Imediato"}
 - **LinkedIn headline:** "${identity.headline || "N/A"}"
 - **LinkedIn:** ${identity.linkedinUrl || "N/A"}
 - **GitHub:** ${identity.githubUrl || "N/A"}
@@ -58,11 +87,25 @@ ${eduLines}
 ### Professional Experience
 ${expLines}
 
-### Technical Skills
+### Key Projects
+${projLines}
+
+### Technical Skills & Evidence
 - **Primary:** ${primarySkills}
 - **Secondary:** ${secondarySkills}
 - **Domain:** ${domainSkills}
 - **Software:** ${toolsSkills}
+- **Verified Evidences:**
+${evidenceSkillLines}
+
+### Transferable Skills
+${transferableLines}
+
+### Energizing Activities
+${energizingLines}
+
+### Draining Activities
+${drainingLines}
 
 ### Certifications
 ${certLines}
@@ -70,7 +113,7 @@ ${certLines}
 ### Target Sectors
 ${sectorsLines}
 
-### Deal-breakers
+### Deal-breakers & Constraints
 ${dealbreakerLines}`
 }
 

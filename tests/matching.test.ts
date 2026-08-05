@@ -45,9 +45,11 @@ function runTests() {
 
   const resultStrong = calculateJobFit(strongJob, candidateProfile)
   assert.strictEqual(resultStrong.fit, "strong", "Job matching all primary criteria should be strong fit")
+  assert.strictEqual(resultStrong.recommendation, "apply_immediately", "Strong fit with high score should recommend apply_immediately")
   assert.ok(resultStrong.score >= 70, `Score should be >= 70, received ${resultStrong.score}`)
+  assert.ok(resultStrong.subScores.energyScore !== undefined, "SubScores must include energyScore")
   assert.ok(resultStrong.strengths.length > 0, "Strengths list should not be empty")
-  console.log(`✓ Test 1: Strong Fit Job passed (Score: ${resultStrong.score}, Fit: ${resultStrong.fit})`)
+  console.log(`✓ Test 1: Strong Fit Job passed (Score: ${resultStrong.score}, Fit: ${resultStrong.fit}, Rec: ${resultStrong.recommendation})`)
 
   // Test 2: Weak Fit Job with Dealbreaker Constraint
   const weakJob: JobInput = {
@@ -59,9 +61,11 @@ function runTests() {
 
   const resultWeak = calculateJobFit(weakJob, candidateProfile)
   assert.strictEqual(resultWeak.fit, "weak", "Job violating dealbreaker and skills should be weak fit")
+  assert.strictEqual(resultWeak.recommendation, "skip", "Job with dealbreaker should recommend skip")
+  assert.ok(resultWeak.dealbreakersTriggered.length > 0, "Dealbreaker should be recorded")
   assert.ok(resultWeak.score < 45, `Score should be < 45, received ${resultWeak.score}`)
   assert.ok(resultWeak.gaps.length > 0, "Gaps list should record dealbreaker")
-  console.log(`✓ Test 2: Weak Fit Job passed (Score: ${resultWeak.score}, Fit: ${resultWeak.fit})`)
+  console.log(`✓ Test 2: Weak Fit Job passed (Score: ${resultWeak.score}, Fit: ${resultWeak.fit}, Rec: ${resultWeak.recommendation})`)
 
   console.log("\nAll Matching Benchmarkado tests passed cleanly!")
 }
