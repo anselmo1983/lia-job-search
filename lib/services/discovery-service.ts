@@ -108,25 +108,35 @@ function isAdapterEnabled(adapter: SourceAdapter): boolean {
 }
 
 function runAdapterCli(adapter: SourceAdapter, query: string, location: string): { results: Record<string, unknown>[]; failed: boolean } {
-  const args = ["run", adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
-  let result = spawnSync("bun", args, {
-    cwd: process.cwd(),
-    timeout: 25_000,
-    encoding: "utf-8",
-    shell: process.platform === "win32",
-  })
+  let result: any = null
 
-  if (result.error || result.status !== 0) {
-    const tsxArgs = ["tsx", adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
-    result = spawnSync("npx", tsxArgs, {
+  try {
+    const tsxArgs = [adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
+    result = spawnSync("npx", ["tsx", ...tsxArgs], {
       cwd: process.cwd(),
       timeout: 25_000,
       encoding: "utf-8",
       shell: process.platform === "win32",
     })
+  } catch (err) {
+    result = null
   }
 
-  if (result.error || result.status !== 0) return { results: [], failed: true }
+  if (!result || result.error || result.status !== 0) {
+    try {
+      const bunArgs = ["run", adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
+      result = spawnSync("bun", bunArgs, {
+        cwd: process.cwd(),
+        timeout: 25_000,
+        encoding: "utf-8",
+        shell: process.platform === "win32",
+      })
+    } catch {
+      return { results: [], failed: true }
+    }
+  }
+
+  if (!result || result.error || result.status !== 0 || !result.stdout) return { results: [], failed: true }
   try {
     const parsed = JSON.parse(result.stdout)
     return { results: (parsed?.results ?? []) as Record<string, unknown>[], failed: false }
