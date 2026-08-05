@@ -1,6 +1,6 @@
 import assert from "node:assert"
 import { detectFormFields, autoFillFormSchema } from "../lib/services/form-automation-service"
-import { CandidateProfile } from "../lib/db/profile-schema"
+import { CandidateProfileSchema } from "../lib/db/profile-schema"
 
 function runTests() {
   console.log("Starting CT220 Browser Automation tests...")
@@ -15,7 +15,7 @@ function runTests() {
     </form>
   `
 
-  const candidateProfile: CandidateProfile = {
+  const candidateProfile = CandidateProfileSchema.parse({
     identity: {
       fullName: "Anselmo Farias",
       email: "anselmo@example.com",
@@ -43,7 +43,7 @@ function runTests() {
     experiences: [],
     education: [],
     certifications: [],
-  }
+  })
 
   // Test 1: Detect Form Fields from HTML
   const fields = detectFormFields(sampleFormHtml)

@@ -1,10 +1,10 @@
 import assert from "node:assert"
-import { CandidateProfileSchema, CandidateProfile } from "../lib/db/profile-schema"
+import { CandidateProfileSchema, CandidateProfileInput } from "../lib/db/profile-schema"
 
 function runTests() {
   console.log("Starting Candidate Profile Schema tests...")
 
-  const validProfile: CandidateProfile = {
+  const validProfile: CandidateProfileInput = {
     identity: {
       fullName: "Anselmo Farias",
       email: "anselmo@example.com",
@@ -62,7 +62,10 @@ function runTests() {
   // Test 1: Valid Profile
   const result = CandidateProfileSchema.safeParse(validProfile)
   assert.strictEqual(result.success, true, "Valid profile must pass schema validation")
-  console.log("✓ Test 1: Candidate Profile Zod validation passed")
+  if (result.success) {
+    assert.strictEqual(result.data.meta.version, 1)
+  }
+  console.log("✓ Test 1: Candidate Profile Zod validation passed with meta defaults")
 
   // Test 2: Invalid Email
   const invalidProfile = {

@@ -1,11 +1,11 @@
 import assert from "node:assert"
 import { calculateJobFit, JobInput } from "../lib/services/matching-engine"
-import { CandidateProfile } from "../lib/db/profile-schema"
+import { CandidateProfileSchema } from "../lib/db/profile-schema"
 
 function runTests() {
   console.log("Starting Matching Benchmarkado tests...")
 
-  const candidateProfile: CandidateProfile = {
+  const candidateProfile = CandidateProfileSchema.parse({
     identity: {
       fullName: "Anselmo Farias",
       email: "anselmo@example.com",
@@ -33,7 +33,7 @@ function runTests() {
     experiences: [],
     education: [],
     certifications: [],
-  }
+  })
 
   // Test 1: Strong Fit Job
   const strongJob: JobInput = {

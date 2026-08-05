@@ -1,6 +1,6 @@
 import assert from "node:assert"
 import { extractJobKeywords, calculateAtsKeywordMatch } from "../lib/services/tailoring-engine"
-import { CandidateProfile } from "../lib/db/profile-schema"
+import { CandidateProfileSchema } from "../lib/db/profile-schema"
 
 function runTests() {
   console.log("Starting ATS / Tailoring 10/10 tests...")
@@ -12,7 +12,7 @@ function runTests() {
     Buscamos alguém com boa comunicação e trabalho em equipe.
   `
 
-  const candidateProfile: CandidateProfile = {
+  const candidateProfile = CandidateProfileSchema.parse({
     identity: {
       fullName: "Anselmo Farias",
       email: "anselmo@example.com",
@@ -40,7 +40,7 @@ function runTests() {
     experiences: [],
     education: [],
     certifications: [],
-  }
+  })
 
   // Test 1: Extract Keywords
   const keywords = extractJobKeywords(sampleDescription)

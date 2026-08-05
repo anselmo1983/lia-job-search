@@ -62,15 +62,13 @@ const ENV_VARS = [
   // ── Bifrost / AI (required for AI features) ──
   {
     name: "BIFROST_BASE_URL",
-    required: true,
-    description: "Bifrost (CT109) inference endpoint URL",
-    fix: "Set to your Bifrost deployment URL",
+    required: false,
+    description: "Bifrost (CT109) inference endpoint URL (AI features disabled if unset)",
   },
   {
     name: "BIFROST_VIRTUAL_KEY",
-    required: true,
-    description: "Bifrost virtual key for authentication",
-    fix: "Obtain from your Bifrost (CT109) deployment",
+    required: false,
+    description: "Bifrost virtual key for authentication (AI features disabled if unset)",
   },
   {
     name: "BIFROST_MODEL_DEFAULT",

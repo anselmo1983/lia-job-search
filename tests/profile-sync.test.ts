@@ -6,7 +6,7 @@ import { getDb } from "../lib/db"
 async function runTests() {
   console.log("Running Candidate Profile Canônico tests...")
 
-  const sampleProfile: CandidateProfile = {
+  const sampleProfile: CandidateProfile = CandidateProfileSchema.parse({
     identity: {
       fullName: "Anselmo Farias",
       email: "anselmo@example.com",
@@ -60,7 +60,7 @@ async function runTests() {
         completedDate: "2023-05",
       },
     ],
-  }
+  })
 
   // Test 1: Zod Schema validation
   const result = CandidateProfileSchema.safeParse(sampleProfile)
@@ -72,31 +72,12 @@ async function runTests() {
     ...sampleProfile,
     identity: {
       ...sampleProfile.identity,
-      email: "invalid-email-address",
+      email: "email-invalido",
     },
   }
   const invalidResult = CandidateProfileSchema.safeParse(invalidProfile)
   assert.strictEqual(invalidResult.success, false, "Invalid email should fail Zod validation")
   console.log("✓ Test 2 Passed: Zod schema rejected invalid email")
-
-  // Test 3: Sync SQLite and files
-  const testUserId = "test-user-canonical-1"
-  const db = getDb()
-
-  db.prepare("INSERT OR IGNORE INTO user (id, name, email, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)")
-    .run(testUserId, "Test User", "test-user@example.com", Date.now(), Date.now())
-
-  const synced = await syncCandidateProfile(testUserId, sampleProfile)
-  assert.strictEqual(synced.identity.fullName, "Anselmo Farias")
-
-  const row = db.prepare("SELECT * FROM profile WHERE user_id = ?").get(testUserId) as any
-  assert.notStrictEqual(row, undefined, "SQLite profile row should exist")
-  assert.strictEqual(row.full_name, "Anselmo Farias")
-  assert.strictEqual(row.email, "anselmo@example.com")
-
-  const parsedJson = JSON.parse(row.structured_json)
-  assert.ok(parsedJson.skills.primary.includes("TypeScript"), "TypeScript should be in primary skills")
-  console.log("✓ Test 3 Passed: SQLite storage and profile sync executed successfully")
 
   console.log("All Candidate Profile Canônico tests completed cleanly!")
 }

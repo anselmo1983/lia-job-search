@@ -32,7 +32,14 @@ export const CertificationSchema = z.object({
   completedDate: z.string().min(1),
 })
 
+export const CandidateProfileMetaSchema = z.object({
+  version: z.number().default(1),
+  updatedAt: z.string().default(() => new Date().toISOString()),
+  source: z.string().default("canonical"),
+}).default({})
+
 export const CandidateProfileSchema = z.object({
+  meta: CandidateProfileMetaSchema,
   identity: z.object({
     fullName: z.string().min(1),
     email: z.string().email(),
@@ -62,4 +69,5 @@ export const CandidateProfileSchema = z.object({
   certifications: z.array(CertificationSchema).default([]),
 })
 
+export type CandidateProfileInput = z.input<typeof CandidateProfileSchema>
 export type CandidateProfile = z.infer<typeof CandidateProfileSchema>
