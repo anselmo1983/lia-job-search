@@ -23,6 +23,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { fetchWithAuth } from "@/lib/auth/client-guard"
+import { FormAutoFillDrawer } from "@/components/jobs/form-autofill-drawer"
+import { AtsReportDrawer } from "@/components/jobs/ats-report-drawer"
+
 
 export type JobPreviewData = {
   id: string
@@ -221,16 +224,22 @@ export function JobPreviewDrawer({
               </div>
 
               {onOpenApplyModal && (
-                <Button
-                  size="sm"
-                  onClick={() => onOpenApplyModal(job)}
-                  className="gap-1.5 bg-emerald-400 text-slate-950 hover:bg-emerald-300 font-semibold"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span>Gerar Candidatura (/apply)</span>
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <AtsReportDrawer jobId={job.id} jobTitle={job.title} company={job.company} jobDescription={job.description} />
+                  <FormAutoFillDrawer jobId={job.id} jobTitle={job.title} company={job.company} />
+                  <Button
+                    size="sm"
+                    onClick={() => onOpenApplyModal(job)}
+                    className="gap-1.5 bg-emerald-400 text-slate-950 hover:bg-emerald-300 font-semibold text-xs"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span>Gerar Candidatura (/apply)</span>
+                  </Button>
+                </div>
               )}
+
             </div>
+
           </div>
 
           {/* SCORE REPORT CARD */}

@@ -107,3 +107,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Falha ao salvar resposta no vault", details: error?.message }, { status: 500 })
   }
 }
+
+export async function DELETE(req: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
+
+  try {
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Sessão inválida" }, { status: 401 })
+    }
+
+    const profile = getProfileSync()
+    if (!profile) {
+      return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get("id")
+    const type = searchParams.get("type") || "vault"
+
+    if (!id) {
+      return NextResponse.json({ error: "ID é obrigatório" }, { status: 400 })
+    }
+
+    const updatedProfile = { ...profile }
+
+    if (type === "vault") {
+      updatedProfile.answerVault = (updatedProfile.answerVault || []).filter((v) => v.id !== id)
+    } else if (type === "fact") {
+      updatedProfile.applicationFacts = (updatedProfile.applicationFacts || []).filter((f) => f.id !== id)
+    }
+
+    const synced = await syncCandidateProfile(session.user.id, updatedProfile)
+
+    return NextResponse.json({
+      success: true,
+      facts: synced.applicationFacts,
+      vault: synced.answerVault,
+    })
+  } catch (error: any) {
+    console.error("Erro no DELETE /api/answers:", error)
+    return NextResponse.json({ error: "Falha ao excluir item do vault" }, { status: 500 })
+  }
+}
+

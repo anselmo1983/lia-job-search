@@ -16,6 +16,8 @@ export interface FilledFormField {
   suggestedValue: string
   characterCount: number
   isOverLimit: boolean
+  confidenceScore?: number // 0-100%
+  matchType?: "identity" | "vault" | "fact" | "preference" | "fallback"
 }
 
 export function detectFormFields(htmlContent: string): DetectedField[] {
@@ -82,7 +84,18 @@ function normalizeText(text: string): string {
     .trim()
 }
 
-export function findBestVaultAnswer(questionText: string, profile: CandidateProfile): string | null {
+export function findBestVaultAnswer(
+  questionText: string,
+  profile: CandidateProfile
+): string | null {
+  const result = findBestVaultAnswerWithMeta(questionText, profile)
+  return result ? result.answer : null
+}
+
+export function findBestVaultAnswerWithMeta(
+  questionText: string,
+  profile: CandidateProfile
+): { answer: string; confidence: number; matchType: "vault" | "fact" | "preference" } | null {
   if (!questionText) return null
   const qClean = normalizeText(questionText)
   if (!qClean) return null
@@ -93,7 +106,7 @@ export function findBestVaultAnswer(questionText: string, profile: CandidateProf
     if (!item.questionText) continue
     const itemClean = normalizeText(item.questionText)
     if (itemClean === qClean || qClean.includes(itemClean) || itemClean.includes(qClean)) {
-      return item.answerText
+      return { answer: item.answerText, confidence: 95, matchType: "vault" }
     }
   }
 
@@ -103,13 +116,13 @@ export function findBestVaultAnswer(questionText: string, profile: CandidateProf
     if (!fact.factKey) continue
     const keyClean = normalizeText(fact.factKey)
     if (qClean.includes(keyClean) || keyClean.includes(qClean)) {
-      return fact.factValue
+      return { answer: fact.factValue, confidence: 90, matchType: "fact" }
     }
     const qStems = qClean.split(/\s+/).filter((w) => w.length >= 4)
     const keyStems = keyClean.split(/\s+/).filter((w) => w.length >= 4)
     const hasOverlap = qStems.some((qs) => keyStems.some((ks) => qs.slice(0, 4) === ks.slice(0, 4)))
     if (hasOverlap) {
-      return fact.factValue
+      return { answer: fact.factValue, confidence: 85, matchType: "fact" }
     }
   }
 
@@ -117,50 +130,86 @@ export function findBestVaultAnswer(questionText: string, profile: CandidateProf
   const constraints = profile.constraints || {}
   const preferences = profile.preferences || {}
 
-  if ((qClean.includes("salar") || qClean.includes("pretens") || qClean.includes("salary")) && preferences.salaryExpectation) {
-    return preferences.salaryExpectation
+  if (
+    (qClean.includes("salar") || qClean.includes("pretens") || qClean.includes("salary")) &&
+    preferences.salaryExpectation
+  ) {
+    return { answer: preferences.salaryExpectation, confidence: 90, matchType: "preference" }
   }
 
-  if ((qClean.includes("aviso") || qClean.includes("notice") || qClean.includes("disponibil")) && constraints.noticePeriod) {
-    return constraints.noticePeriod
+  if (
+    (qClean.includes("aviso") || qClean.includes("notice") || qClean.includes("disponibil")) &&
+    constraints.noticePeriod
+  ) {
+    return { answer: constraints.noticePeriod, confidence: 90, matchType: "preference" }
   }
 
-  if ((qClean.includes("visto") || qClean.includes("visa") || qClean.includes("autoriz") || qClean.includes("sponsorship")) && constraints.workAuthorization) {
-    return constraints.workAuthorization
+  if (
+    (qClean.includes("visto") ||
+      qClean.includes("visa") ||
+      qClean.includes("autoriz") ||
+      qClean.includes("sponsorship")) &&
+    constraints.workAuthorization
+  ) {
+    return { answer: constraints.workAuthorization, confidence: 90, matchType: "preference" }
   }
 
   return null
 }
 
-export function autoFillFormSchema(fields: DetectedField[], profile: CandidateProfile): FilledFormField[] {
+export function autoFillFormSchema(
+  fields: DetectedField[],
+  profile: CandidateProfile
+): FilledFormField[] {
   const { identity, contact } = profile
 
   return fields.map((field) => {
     const key = (field.name + " " + field.label).toLowerCase()
 
     // 1. Tenta resposta do vault ou repositório de fatos
-    let suggestedValue = findBestVaultAnswer(field.label || field.name, profile) || ""
+    const vaultResult = findBestVaultAnswerWithMeta(field.label || field.name, profile)
+    let suggestedValue = vaultResult?.answer || ""
+    let confidenceScore = vaultResult?.confidence || 60
+    let matchType: FilledFormField["matchType"] = vaultResult?.matchType || "fallback"
 
-    // 2. Se não encontrar no vault, usa mapeamento padrão de identidade/contato
+    // 2. Se não encontrar no vault, usa mapeamento padrão de identidade/contato (100% Confiança)
     if (!suggestedValue) {
       if (key.includes("name") || key.includes("nome")) {
         suggestedValue = identity.fullName
+        confidenceScore = 100
+        matchType = "identity"
       } else if (key.includes("email") || key.includes("e-mail")) {
         suggestedValue = contact.email || identity.email
+        confidenceScore = 100
+        matchType = "identity"
       } else if (key.includes("phone") || key.includes("telef") || key.includes("celular")) {
         suggestedValue = contact.phone || identity.phone || ""
+        confidenceScore = 100
+        matchType = "identity"
       } else if (key.includes("linkedin")) {
         suggestedValue = contact.linkedin || identity.linkedinUrl || ""
+        confidenceScore = 100
+        matchType = "identity"
       } else if (key.includes("github")) {
         suggestedValue = contact.github || identity.githubUrl || ""
+        confidenceScore = 100
+        matchType = "identity"
       } else if (key.includes("portfolio") || key.includes("site") || key.includes("website")) {
         suggestedValue = contact.portfolio || identity.websiteUrl || ""
+        confidenceScore = 100
+        matchType = "identity"
       } else if (key.includes("city") || key.includes("cidade") || key.includes("location") || key.includes("local")) {
         suggestedValue = contact.location || identity.location || ""
+        confidenceScore = 95
+        matchType = "identity"
       } else if (key.includes("summary") || key.includes("sobre") || key.includes("bio") || key.includes("presentation")) {
         suggestedValue = identity.summary || `${identity.fullName} - ${identity.headline}`
+        confidenceScore = 85
+        matchType = "identity"
       } else {
         suggestedValue = identity.headline || "Profissional de TI"
+        confidenceScore = 60
+        matchType = "fallback"
       }
     }
 
@@ -175,7 +224,8 @@ export function autoFillFormSchema(fields: DetectedField[], profile: CandidatePr
       suggestedValue,
       characterCount: suggestedValue.length,
       isOverLimit: field.maxLength ? suggestedValue.length > field.maxLength : false,
+      confidenceScore,
+      matchType,
     }
   })
 }
-

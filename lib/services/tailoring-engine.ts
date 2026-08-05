@@ -1,4 +1,5 @@
 import { CandidateProfile } from "@/lib/db/profile-schema"
+import { ResumeDocument, JsonPatchOperation } from "@/lib/db/resume-schema"
 import { renderTailoredLatexCv, renderTailoredLatexCoverLetter } from "@/lib/services/latex-generator"
 
 export interface ExtractedKeywords {
@@ -14,6 +15,7 @@ export interface AtsMatchReport {
   matchedKeywords: string[]
   missingKeywords: string[]
   keywordCoverageDetails: Array<{ keyword: string; matched: boolean; category: string }>
+  suggestedPatches?: Array<{ keyword: string; patch: JsonPatchOperation }>
 }
 
 export interface TailoredDocumentResult {
@@ -113,6 +115,52 @@ export function calculateAtsKeywordMatch(keywords: ExtractedKeywords, profile: C
   }
 }
 
+export function calculateResumeDocumentAtsMatch(doc: ResumeDocument, jobDescription: string): AtsMatchReport {
+  const keywords = extractJobKeywords(jobDescription)
+  const docText = JSON.stringify(doc).toLowerCase()
+
+  const matchedKeywords: string[] = []
+  const missingKeywords: string[] = []
+  const keywordCoverageDetails: Array<{ keyword: string; matched: boolean; category: string }> = []
+  const suggestedPatches: Array<{ keyword: string; patch: JsonPatchOperation }> = []
+
+  for (const kw of keywords.allKeywords) {
+    const isMatched = docText.includes(kw)
+    if (isMatched) {
+      matchedKeywords.push(kw)
+    } else {
+      missingKeywords.push(kw)
+      // Gerar patch sugerido para incluir palavra-chave nas competências do currículo
+      suggestedPatches.push({
+        keyword: kw,
+        patch: {
+          op: "add",
+          path: "/sections/skills/primary/-",
+          value: kw.charAt(0).toUpperCase() + kw.slice(1),
+        },
+      })
+    }
+
+    let category = "Domain"
+    if (keywords.technicalSkills.includes(kw)) category = "Technical"
+    else if (keywords.softSkills.includes(kw)) category = "Soft Skill"
+    else if (keywords.toolsAndFrameworks.includes(kw)) category = "Tool/Framework"
+
+    keywordCoverageDetails.push({ keyword: kw, matched: isMatched, category })
+  }
+
+  const total = keywords.allKeywords.length
+  const matchScore = total > 0 ? Math.round((matchedKeywords.length / total) * 100) : 100
+
+  return {
+    matchScore,
+    matchedKeywords,
+    missingKeywords,
+    keywordCoverageDetails,
+    suggestedPatches,
+  }
+}
+
 export function buildAtsTailoringPrompt(job: { title: string; company: string; description: string }, profile: CandidateProfile) {
   const keywords = extractJobKeywords(job.description || "")
   const matchReport = calculateAtsKeywordMatch(keywords, profile)
@@ -183,4 +231,3 @@ export function generateTailoredDocument(
     coverLetterContent,
   }
 }
-

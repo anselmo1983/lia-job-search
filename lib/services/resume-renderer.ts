@@ -233,3 +233,80 @@ export function renderResumeDocument(
     mimeType: "text/html",
   }
 }
+
+export function renderCoverLetterToLatex(doc: any): string {
+  const { basics, recipientCompany, targetRole, salutation, openingParagraph, bodyParagraphs, closingParagraph, signOff } = doc
+  const [firstName, ...lastNameParts] = (basics.fullName || "Candidato").split(" ")
+  const lastName = lastNameParts.join(" ") || ""
+
+  const bodyText = (bodyParagraphs || []).map((p: string) => escapeLatex(p)).join("\n\n")
+
+  return `%% Cover Letter Compilada para ${escapeLatex(targetRole)} na ${escapeLatex(recipientCompany)}
+\\documentclass[11pt,a4paper,sans]{moderncv}
+\\moderncvstyle{banking}
+\\moderncvcolor{blue}
+
+\\usepackage[utf8]{inputenc}
+\\usepackage[scale=0.75]{geometry}
+
+\\name{${escapeLatex(firstName)}}{${escapeLatex(lastName)}}
+\\phone[mobile]{${escapeLatex(basics.phone || "")}}
+\\email{${escapeLatex(basics.email || "")}}
+
+\\begin{document}
+
+\\recipient{Equipe de Recrutamento}{${escapeLatex(recipientCompany)}}
+\\date{\\today}
+\\opening{${escapeLatex(salutation)}}
+\\closing{${escapeLatex(signOff)}}
+
+\\makelettertitle
+
+${escapeLatex(openingParagraph)}
+
+${bodyText}
+
+${escapeLatex(closingParagraph)}
+
+\\makeletterclosing
+
+\\end{document}
+`
+}
+
+export function renderCoverLetterToHtml(doc: any): string {
+  const { basics, recipientCompany, targetRole, salutation, openingParagraph, bodyParagraphs, closingParagraph, signOff } = doc
+  const bodyItems = (bodyParagraphs || []).map((p: string) => `<p class="mb-3 leading-relaxed text-xs text-slate-700 dark:text-slate-300">${p}</p>`).join("")
+
+  return `
+<div class="cover-letter-preview font-sans p-6 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 max-w-2xl mx-auto rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 text-sm space-y-4">
+  <header class="border-b border-slate-200 dark:border-slate-800 pb-3">
+    <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100">${basics.fullName}</h2>
+    <div class="text-xs text-slate-500 flex gap-3 mt-1">
+      <span>📧 ${basics.email}</span>
+      ${basics.phone ? `<span>📞 ${basics.phone}</span>` : ""}
+    </div>
+  </header>
+
+  <div class="text-xs text-slate-500 font-medium">
+    Para: Recrutamento — <strong>${recipientCompany}</strong> (${targetRole})
+  </div>
+
+  <div class="pt-2 text-xs text-slate-800 dark:text-slate-200 font-semibold">
+    ${salutation}
+  </div>
+
+  <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">${openingParagraph}</p>
+
+  ${bodyItems}
+
+  <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">${closingParagraph}</p>
+
+  <div class="pt-4 text-xs font-semibold text-slate-900 dark:text-slate-100">
+    ${signOff}<br/>
+    <span class="font-bold">${basics.fullName}</span>
+  </div>
+</div>
+`
+}
+
