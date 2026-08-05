@@ -39,6 +39,10 @@ ALLOWED_PERMISSIONS = {
     "Bash(python salary_lookup.py:*)",
     "Bash(python3 salary_lookup.py:*)",
     "Bash(pdftotext:*)",
+    "Bash(npx @claude-flow*)",
+    "Bash(npx claude-flow*)",
+    "Bash(node .claude/*)",
+    "mcp__claude-flow__*",
 }
 
 # Personal-data ignore rules that must never disappear from .gitignore.

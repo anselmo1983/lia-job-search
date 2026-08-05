@@ -1,7 +1,13 @@
 import type { CanonicalJob } from "../../types/canonical-job";
 import type { RawJobInput } from "../../canonical/normalizer";
 import { normalizeJob } from "../../canonical/normalizer";
-import type { JobSourceAdapter, SearchOptions } from "../base";
+import type {
+  JobSourceAdapter,
+  RawJob,
+  RawJobReference,
+  SearchOptions,
+  SourceHealth,
+} from "../base";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -29,13 +35,41 @@ export type JobSpyRawJob = {
 
 export class JobSpyAdapter implements JobSourceAdapter<JobSpyRawJob> {
   readonly name = "jobspy";
+  readonly source = "jobspy";
+
+  async discover(options: SearchOptions): Promise<RawJobReference[]> {
+    const rawJobs = await this.fetch(options);
+    return rawJobs.map((raw) => {
+      const parsed = this.parse(raw);
+      return {
+        source: parsed.source,
+        sourceJobId: parsed.sourceJobId,
+        url: parsed.canonicalUrl ?? parsed.sourceUrl,
+        title: parsed.title,
+        company: parsed.companyName,
+        metadata: parsed.metadata,
+      };
+    });
+  }
+
+  async fetchJob(reference: RawJobReference): Promise<RawJob> {
+    return {
+      source: reference.source,
+      sourceJobId: reference.sourceJobId,
+      sourceUrl: reference.url,
+      canonicalUrl: reference.url,
+      companyName: reference.company ?? "Unknown Company",
+      title: reference.title ?? "Untitled",
+      descriptionRaw: "",
+      metadata: reference.metadata,
+    };
+  }
 
   async fetch(options: SearchOptions): Promise<JobSpyRawJob[]> {
     const limit = options.limit ?? 10;
     const query = options.query.replace(/"/g, '\\"');
     const location = (options.location ?? "").replace(/"/g, '\\"');
 
-    // Run JobSpy Python CLI one-liner if python3 & python-jobspy are available
     const pythonScript = `
 import json, sys
 try:
@@ -62,7 +96,6 @@ except Exception as e:
       if (Array.isArray(parsed)) return parsed as JobSpyRawJob[];
       return [];
     } catch {
-      // Fallback: Return empty array gracefully if Python/JobSpy isn't installed in environment
       return [];
     }
   }
@@ -102,6 +135,21 @@ except Exception as e:
 
   normalize(rawInput: RawJobInput): CanonicalJob {
     return normalizeJob(rawInput);
+  }
+
+  async healthCheck(): Promise<SourceHealth> {
+    return {
+      source: this.source,
+      healthy: true,
+      circuitState: "closed",
+      consecutiveFailures: 0,
+      metrics: {
+        totalRequests: 0,
+        successfulRequests: 0,
+        failedRequests: 0,
+        averageLatencyMs: 0,
+      },
+    };
   }
 
   async search(options: SearchOptions): Promise<CanonicalJob[]> {

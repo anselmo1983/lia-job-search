@@ -8,6 +8,46 @@ import type {
 } from "../types/canonical-job";
 import { generateFingerprints } from "./fingerprint";
 
+export function canonicalJobUrl(input?: string): string {
+  if (!input) return "";
+  try {
+    const url = new URL(input.trim());
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+
+    if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+      url.pathname = url.pathname.slice(0, -1);
+    }
+
+    const trackingParams = [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "from",
+      "fromage",
+      "advn",
+      "vjs",
+      "xkcb",
+      "tk",
+      "ref",
+      "sp",
+      "gh_jid",
+      "lipi",
+    ];
+
+    for (const param of trackingParams) {
+      url.searchParams.delete(param);
+    }
+
+    url.searchParams.sort();
+    return url.toString();
+  } catch {
+    return input.trim().replace(/#.*$/, "").toLowerCase();
+  }
+}
+
 export type RawJobInput = {
   id?: string;
   source: string;
@@ -129,7 +169,8 @@ export function parseSalaryRange(raw?: string): SalaryRange | undefined {
 
 export function normalizeJob(rawInput: RawJobInput): CanonicalJob {
   const discoveredAt = new Date().toISOString();
-  const canonicalUrl = rawInput.canonicalUrl ?? rawInput.sourceUrl;
+  const rawUrl = rawInput.canonicalUrl ?? rawInput.sourceUrl;
+  const canonicalUrl = canonicalJobUrl(rawUrl) || rawUrl;
   const title = rawInput.title.trim();
   const normalizedTitle = normalizeTitle(title);
   const companyName = rawInput.companyName.trim();

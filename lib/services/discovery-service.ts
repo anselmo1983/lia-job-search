@@ -272,11 +272,42 @@ const jobindexAdapter: SourceAdapter = {
 
 const ADAPTERS: SourceAdapter[] = [linkedinAdapter, freehireAdapter, indeedbrAdapter, jobindexAdapter]
 
+import { deduplicate } from "../canonical/deduplication"
+import type { CanonicalJob } from "../types/canonical-job"
+
+function discoveredToCanonical(job: DiscoveredJob): CanonicalJob {
+  return {
+    id: job.id,
+    source: job.source,
+    sourceJobId: job.externalId,
+    sourceUrl: job.url,
+    canonicalUrl: job.url,
+    company: { name: job.company },
+    title: job.title,
+    normalizedTitle: job.title,
+    descriptionRaw: job.description,
+    locations: [{ rawLocation: job.location, isRemote: job.location.toLowerCase().includes("remot") }],
+    requirements: { skills: [] },
+    discoveredAt: new Date().toISOString(),
+    fingerprints: {
+      urlHash: job.urlHash,
+      contentHash: job.contentHash,
+    },
+    provenance: [
+      {
+        source: job.source,
+        sourceJobId: job.externalId,
+        sourceUrl: job.url,
+        discoveredAt: new Date().toISOString(),
+      },
+    ],
+  }
+}
+
 export async function runMultiSourceDiscovery(query: string, location: string) {
   const diagnostics: PortalDiagnostic[] = []
   const allJobs: DiscoveredJob[] = []
-  const seenUrlHashes = new Set<string>()
-  const seenContentHashes = new Set<string>()
+  const canonicalStore: CanonicalJob[] = []
 
   for (const adapter of ADAPTERS) {
     if (!isAdapterEnabled(adapter)) {
@@ -291,13 +322,13 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
       const job = adapter.normalize(raw, adapter.name, adapter.tier)
       if (!job) continue
 
-      // Deduplicação Dupla (URL exact + Content fingerprint)
-      if (seenUrlHashes.has(job.urlHash) || seenContentHashes.has(job.contentHash)) {
+      const canonicalRep = discoveredToCanonical(job)
+      const duplicate = deduplicate(canonicalRep, canonicalStore)
+      if (duplicate) {
         continue
       }
-      seenUrlHashes.add(job.urlHash)
-      seenContentHashes.add(job.contentHash)
 
+      canonicalStore.push(canonicalRep)
       allJobs.push(job)
       returned++
     }

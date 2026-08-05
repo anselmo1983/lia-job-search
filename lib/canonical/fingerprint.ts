@@ -24,16 +24,10 @@ export function generateFingerprints(job: {
   };
 }
 
+import { deduplicate } from "./deduplication";
+
 export function isDuplicateJob(existing: CanonicalJob, incoming: CanonicalJob): boolean {
-  if (existing.fingerprints.urlHash === incoming.fingerprints.urlHash) return true;
-  if (
-    existing.fingerprints.contentHash &&
-    incoming.fingerprints.contentHash &&
-    existing.fingerprints.contentHash === incoming.fingerprints.contentHash
-  ) {
-    return true;
-  }
-  return false;
+  return deduplicate(incoming, [existing]) !== undefined;
 }
 
 export function mergeJobProvenance(existing: CanonicalJob, incoming: CanonicalJob): CanonicalJob {
