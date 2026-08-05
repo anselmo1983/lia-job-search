@@ -19,11 +19,15 @@ ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
 RUN corepack enable \
- && corepack prepare pnpm@11.18.0 --activate
+ && corepack prepare pnpm@11.18.0 --activate \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY tools/install-hooks.sh ./tools/install-hooks.sh
 
 RUN pnpm install --frozen-lockfile
 
@@ -46,7 +50,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN pnpm build \
+RUN --mount=type=secret,id=ljs_runtime_env,required=true \
+    set -a \
+ && . /run/secrets/ljs_runtime_env \
+ && set +a \
+ && pnpm build \
  && mkdir -p /app/canvas-libs/@napi-rs \
  && find /app/node_modules/.pnpm -maxdepth 1 -name "*canvas*" -exec sh -c 'cp -r -L {}/node_modules/@napi-rs/* /app/canvas-libs/@napi-rs/' \; \
  && mkdir -p /app/sqlite-libs \
