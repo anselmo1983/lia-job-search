@@ -33,6 +33,10 @@ export type Job = {
   deadline: string
 }
 
+export { canonicalToLegacyJob } from "./canonical/normalizer"
+
+
+
 function parseCsv(input: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
