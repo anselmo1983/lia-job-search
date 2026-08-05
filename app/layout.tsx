@@ -10,6 +10,9 @@ import "@fontsource/jetbrains-mono/400.css"
 import "@fontsource/jetbrains-mono/500.css"
 import "./globals.css"
 
+import { Analytics } from "@vercel/analytics/react"
+import { SpeedInsights } from "@vercel/speed-insights/next"
+
 export const metadata: Metadata = {
   title: { default: "Lia OS", template: "%s | Lia OS" },
   description: "Lia Job Search — plataforma local-first de busca e candidatura a vagas com IA",
@@ -23,6 +26,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="pt-BR" className="fonts-pending">
       <body className="antialiased">
         {children}
+        <Analytics />
+        <SpeedInsights />
         <script dangerouslySetInnerHTML={{__html:`
           (function(){
             var d=document.documentElement;
