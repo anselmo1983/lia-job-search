@@ -89,14 +89,17 @@ export function LoginButton({ callbackURL, initialError }: LoginButtonProps) {
           setErrorMessage("Acesso negado: conta não autorizada.")
         } else {
           setStatus("auth_error")
-          setErrorMessage("Falha na autenticação com o Google.")
+          setErrorMessage(res.error.message || "Falha na autenticação com o Google.")
         }
+      } else if (res?.data?.url) {
+        setStatus("oauth_redirect")
+        window.location.assign(res.data.url)
       } else {
         setStatus("oauth_redirect")
       }
-    } catch {
+    } catch (err: unknown) {
       setStatus("auth_error")
-      setErrorMessage("Erro ao conectar com o serviço de autenticação.")
+      setErrorMessage(err instanceof Error ? err.message : "Erro ao conectar com o serviço de autenticação.")
     }
   }
 
