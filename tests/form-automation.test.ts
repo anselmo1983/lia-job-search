@@ -1,5 +1,5 @@
 import assert from "node:assert"
-import { detectFormFields, autoFillFormSchema } from "../lib/services/form-automation-service"
+import { detectFormFields, autoFillFormSchema, findBestVaultAnswer } from "../lib/services/form-automation-service"
 import { CandidateProfileSchema } from "../lib/db/profile-schema"
 
 function runTests() {
@@ -43,6 +43,24 @@ function runTests() {
     experiences: [],
     education: [],
     certifications: [],
+    applicationFacts: [
+      {
+        factKey: "Salário Pretendido",
+        factValue: "R$ 18.000 / mês",
+        verified: true,
+      },
+    ],
+    answerVault: [
+      {
+        questionText: "Qual a sua motivação para trabalhar em IA?",
+        answerText: "Construir sistemas autônomos de alto impacto com segurança e elegância.",
+        category: "screener",
+      },
+    ],
+    constraints: {
+      noticePeriod: "2 semanas",
+      workAuthorization: "Residente Brasil (CLT/PJ)",
+    },
   })
 
   // Test 1: Detect Form Fields from HTML
@@ -61,7 +79,30 @@ function runTests() {
   assert.ok(filledSchema[4].characterCount <= 200, "Bio should respect maxlength")
   console.log("✓ Test 2: Profile auto-fill mapping passed")
 
+  // Test 3: findBestVaultAnswer Lookup
+  const ansVault = findBestVaultAnswer("Qual a sua motivação para trabalhar em IA?", candidateProfile)
+  assert.strictEqual(ansVault, "Construir sistemas autônomos de alto impacto com segurança e elegância.")
+
+  const ansFact = findBestVaultAnswer("Qual o seu salário pretendido?", candidateProfile)
+  assert.strictEqual(ansFact, "R$ 18.000 / mês")
+
+  const ansNotice = findBestVaultAnswer("Qual o seu aviso prévio / disponibilidade?", candidateProfile)
+  assert.strictEqual(ansNotice, "2 semanas")
+  console.log("✓ Test 3: Application facts & Answer Vault lookup passed")
+
+  // Test 4: Screener Questions Auto-Fill
+  const screenerFields = [
+    { id: "f1", name: "expected_salary", label: "Pretensão Salarial", type: "text" as const, required: true },
+    { id: "f2", name: "motivacao", label: "Qual a sua motivação para trabalhar em IA?", type: "textarea" as const, required: true },
+  ]
+
+  const filledScreener = autoFillFormSchema(screenerFields, candidateProfile)
+  assert.strictEqual(filledScreener[0].suggestedValue, "R$ 18.000 / mês")
+  assert.strictEqual(filledScreener[1].suggestedValue, "Construir sistemas autônomos de alto impacto com segurança e elegância.")
+  console.log("✓ Test 4: Screener questions auto-fill via Vault passed")
+
   console.log("\nAll CT220 Browser Automation tests passed cleanly!")
 }
 
 runTests()
+
