@@ -103,7 +103,7 @@ const allowedEmails = allowedEmailsRaw
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean)
 
-function isEmailAllowed(email?: string | null): boolean {
+export function isEmailAllowed(email?: string | null): boolean {
   if (allowedEmails.length === 0) return true
   if (!email) return false
   return allowedEmails.includes(email.trim().toLowerCase())
@@ -159,20 +159,25 @@ export const auth = betterAuth({
   },
 })
 
-/** Sessão do usuário atual (páginas server e rotas de API). */
+/** Sessão do usuário atual (páginas server e rotas de API), validada com a allowlist server-side. */
 export async function getServerSession() {
-  return auth.api.getSession({ headers: await headers() })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) return null
+  if (!isEmailAllowed(session.user?.email)) return null
+  return session
 }
 
 /**
- * Guard para rotas de API: retorna uma Response 401 se não autenticado,
- * ou null se autenticado. Use:
- *   const unauthorized = await requireSession(); if (unauthorized) return unauthorized
+ * Guard para rotas de API: retorna 401 se não autenticado ou 403 se fora da allowlist,
+ * ou null se autorizado.
  */
 export async function requireSession(): Promise<NextResponse | null> {
-  const session = await getServerSession()
-  if (!session) {
+  const rawSession = await auth.api.getSession({ headers: await headers() })
+  if (!rawSession) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+  }
+  if (!isEmailAllowed(rawSession.user?.email)) {
+    return NextResponse.json({ error: "Acesso negado: e-mail fora da allowlist" }, { status: 403 })
   }
   return null
 }
