@@ -239,7 +239,7 @@ export default function FillUpsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={runScrape} disabled={scraping}>
+            <Button variant="outline" size="sm" onClick={() => runScrape()} disabled={scraping}>
               {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4 text-emerald-400" />}
               {scraping ? "Buscando..." : "Buscar Novas Vagas (/scrape)"}
             </Button>
@@ -308,7 +308,7 @@ export default function FillUpsPage() {
           </p>
 
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button onClick={runScrape} disabled={scraping}>
+            <Button onClick={() => runScrape()} disabled={scraping}>
               {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
               {scraping ? "Buscando..." : "Buscar Vagas (/scrape)"}
             </Button>

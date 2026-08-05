@@ -225,7 +225,7 @@ export async function POST(request: Request) {
     if (rankings.length === 0) {
       inferenceMethod = "heuristic"
       const techKeywords = ["software", "desenvolvedor", "developer", "engineer", "frontend", "backend", "fullstack", "react", "node", "typescript", "python", "data", "dados", "cloud", "aws", "sql"]
-      rankings = compactJobs.map((job) => {
+      rankings = compactJobs.map((job: any) => {
         const text = `${job.title} ${job.company} ${job.description || ""}`.toLowerCase()
         const matched = techKeywords.filter((kw) => text.includes(kw))
         let score = Math.min(95, 60 + matched.length * 6)

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { spawnSync } from "child_process"
 import { readFileSync, existsSync } from "fs"
 import path from "path"
+import { dataPath } from "@/lib/runtime/data-directory"
 import { requireSession } from "@/lib/auth/server"
 
 // ---------------------------------------------------------------------------
