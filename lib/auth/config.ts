@@ -13,7 +13,11 @@ export const SESSION_COOKIE_NAME = "better-auth.session_token"
 export const COOKIE_PREFIX = "better-auth"
 
 export function getAuthBaseURL(): string {
-  const fromEnv = process.env.BETTER_AUTH_URL?.trim() || process.env.AUTH_URL?.trim()
+  const fromEnv =
+    process.env.BETTER_AUTH_URL?.trim() ||
+    process.env.AUTH_URL?.trim() ||
+    (process.env.VERCEL_URL?.trim() ? `https://${process.env.VERCEL_URL.trim()}` : "")
+
   if (fromEnv) return fromEnv.replace(/\/+$/, "")
   return "http://localhost:3000"
 }

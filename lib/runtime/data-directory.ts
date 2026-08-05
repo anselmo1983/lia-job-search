@@ -1,17 +1,39 @@
 import fs from "node:fs"
 import { promises as fsPromises } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 
 const DEFAULT_DATA_DIR = path.join(process.cwd(), "data")
 
 export function getDataDirectory(): string {
-  return process.env.LIA_DATA_DIR?.trim() || DEFAULT_DATA_DIR
+  const fromEnv = process.env.LIA_DATA_DIR?.trim()
+  if (fromEnv) return fromEnv
+
+  if (process.env.VERCEL === "1" || process.env.VERCEL_ENV) {
+    return path.join(os.tmpdir(), "lia-data")
+  }
+
+  return DEFAULT_DATA_DIR
 }
 
 export function ensureDataDirectory(): string {
   const dir = getDataDirectory()
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+    return dir
+  } catch {
+    const tmpDir = path.join(os.tmpdir(), "lia-data")
+    try {
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true })
+      }
+      return tmpDir
+    } catch {
+      return dir
+    }
+  }
 }
 
 export function dataPath(...segments: string[]): string {

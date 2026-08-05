@@ -113,6 +113,7 @@ const canonicalURL = getAuthBaseURL()
 const configuredTrustedOrigins = Array.from(
   new Set([
     canonicalURL,
+    "https://lia-job-search.vercel.app",
     "http://ljs.home",
     "https://lia-job-search.tail050f5c.ts.net",
     "http://localhost:3000",
