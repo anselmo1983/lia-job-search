@@ -38,15 +38,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </a>
       <aside className="border-b border-[#3D474D]/40 bg-[#0A1014] lg:fixed lg:inset-y-0 lg:w-64 lg:border-b-0 lg:border-r lg:border-[#3D474D]/40">
         {/* Brand */}
-        <div className="flex h-16 items-center gap-3 border-b border-[#3D474D]/40 px-5">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-400 font-heading font-bold text-[#0E1418] text-lg">Li^</div>
-          <div>
-            <p className="font-heading font-semibold text-[#D0D1CF]">Lia OS</p>
-            <p className="text-xs text-[#A6AEB2]">Busca de Vagas por IA</p>
+        <div className="flex h-16 items-center justify-between border-b border-[#3D474D]/40 px-5">
+          <div className="flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-400 font-heading font-bold text-[#0E1418] text-lg">Li^</div>
+            <div>
+              <p className="font-heading font-semibold text-[#D0D1CF]">Lia OS</p>
+              <p className="text-xs text-[#A6AEB2]">Busca de Vagas por IA</p>
+            </div>
+          </div>
+          {/* Mobile Logout button */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <button
+              onClick={handleSignOut}
+              title="Sair da sessão"
+              className="flex items-center gap-1.5 rounded-lg border border-[#3D474D]/40 bg-[#1C262C] px-2.5 py-1.5 text-xs text-[#A6AEB2] transition hover:bg-[#24323A] hover:text-[#D0D1CF]"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span>Sair</span>
+            </button>
           </div>
         </div>
         {/* Navigation */}
-        <nav className="flex gap-2 overflow-x-auto p-3 lg:block lg:max-h-[calc(100vh-4rem)] lg:space-y-1 lg:overflow-y-auto">
+        <nav className="flex gap-2 overflow-x-auto p-3 lg:block lg:max-h-[calc(100vh-8rem)] lg:space-y-1 lg:overflow-y-auto">
           {navigation.map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? pathname === href : pathname.startsWith(href)
             return (
@@ -66,21 +79,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )
           })}
         </nav>
-        {/* Session footer */}
+        {/* Session footer (Desktop) */}
         <div className="hidden border-t border-[#3D474D]/40 p-3 lg:block">
-          <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2">
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-[#1C262C]/40 px-3 py-2 border border-[#3D474D]/20">
             <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-[#D0D1CF]">
-                {isPending ? "…" : (session?.user?.email || "Sessão")}
+              <p className="truncate text-xs font-medium text-[#D0D1CF]" title={session?.user?.email || "Sessão"}>
+                {isPending ? "…" : (session?.user?.email || "Sessão Ativa")}
               </p>
-              <p className="text-[10px] text-[#6B7478]">Proprietário</p>
+              <p className="text-[10px] text-[#6B7478]">Proprietário Autorizado</p>
             </div>
             <button
               onClick={handleSignOut}
-              title="Sair"
-              className="shrink-0 rounded-md p-1.5 text-[#A6AEB2] transition hover:bg-[#1C262C] hover:text-[#F2F4F3]"
+              title="Sair da sessão"
+              className="shrink-0 rounded-md p-1.5 text-[#A6AEB2] transition hover:bg-[#24323A] hover:text-[#F2F4F3]"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-4 w-4 text-red-400/80 hover:text-red-400" />
             </button>
           </div>
         </div>
