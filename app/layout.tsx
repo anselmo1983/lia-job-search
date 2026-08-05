@@ -8,7 +8,6 @@ import "@fontsource/inter/500.css"
 import "@fontsource/inter/600.css"
 import "@fontsource/jetbrains-mono/400.css"
 import "@fontsource/jetbrains-mono/500.css"
-import { AppShell } from "@/components/app-shell"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -17,11 +16,13 @@ export const metadata: Metadata = {
   icons: { icon: "/icon.svg" },
 }
 
+// CT224 — O AppShell (sidebar) agora vive no layout do grupo protegido
+// (app/(protected)/layout.tsx). A página /login fica fora do shell.
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR" className="fonts-pending">
       <body className="antialiased">
-        <AppShell>{children}</AppShell>
+        {children}
         <script dangerouslySetInnerHTML={{__html:`
           (function(){
             var d=document.documentElement;

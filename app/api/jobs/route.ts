@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 
 import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
+import { requireSession } from "@/lib/auth/server"
 
 const jobsPath = dataPath("job_scraper", "seen_jobs.json")
 
@@ -54,11 +55,15 @@ async function writeJobs(jobs: any[]) {
 }
 
 export async function GET() {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   const jobs = await readJobs()
   return NextResponse.json({ jobs, total: jobs.length })
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const body = await request.json()
     const jobs = await readJobs()

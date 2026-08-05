@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import { completeJson, completeText, getDefaultModel, getReviewModel } from "@/lib/inference/bifrost"
 import { dataPath } from "@/lib/runtime/data-directory"
+import { requireSession } from "@/lib/auth/server"
 
 // Arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
 // As credenciais ficam no servidor; nada de apiKey/provider/model vindo do cliente.
@@ -56,6 +57,8 @@ async function loadCandidateProfileText(givenProfile?: string): Promise<string> 
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const { job, profile } = await request.json()
     if (!job?.title) return NextResponse.json({ error: "Vaga inválida" }, { status: 400 })

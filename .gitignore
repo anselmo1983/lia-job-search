@@ -87,6 +87,9 @@ documents/interview/**
 # Personal job search tracking
 job_search_tracker.csv
 
+# Better Auth SQLite session store (auth/users/sessions — personal, never commit)
+**/data/auth/
+
 # Gmail sync state (message IDs, subjects - personal data)
 gmail_sync/
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { spawnSync } from "child_process"
 import { readFileSync, existsSync } from "fs"
 import path from "path"
+import { requireSession } from "@/lib/auth/server"
 
 // ---------------------------------------------------------------------------
 
@@ -305,6 +306,8 @@ const PORTALS: Portal[] = [linkedin, freehire, indeedbr, jobindex, jobbank, jobd
 // POST /api/scrape
 // ---------------------------------------------------------------------------
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const body: {
       query?: string

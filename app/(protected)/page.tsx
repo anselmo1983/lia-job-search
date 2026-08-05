@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowRight, BriefcaseBusiness, FileCheck2, FolderOpen, Radar, Search, Upload, Settings as SettingsIcon, Loader2 } from "lucide-react"
 import { PageHeader } from "@/components/app-shell"
+import { fetchWithAuth } from "@/lib/auth/client-guard"
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState({ jobs: 0, applications: 0, open: 0, documents: 0, cvs: 0, letters: 0 })
@@ -12,7 +13,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadSummary()
-    fetch("/api/inference/status")
+    fetchWithAuth("/api/inference/status")
       .then((r) => r.json())
       .then((d) => setBifrost({ connected: Boolean(d?.connected) }))
       .catch(() => setBifrost({ connected: false }))
@@ -21,8 +22,8 @@ export default function DashboardPage() {
   async function loadSummary() {
     try {
       const [jobsRes, appsRes] = await Promise.all([
-        fetch("/api/jobs"),
-        fetch("/api/outcome"),
+        fetchWithAuth("/api/jobs"),
+        fetchWithAuth("/api/outcome"),
       ])
       const jobsData = await jobsRes.json()
       const appsData = await appsRes.json()

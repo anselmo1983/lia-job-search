@@ -6,6 +6,7 @@ import { ArrowRight, CheckCircle2, Sparkles, Radar, Star, Loader2, Search, Exter
 import { PageHeader } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 import JobApplyModal from "@/components/job-apply-modal"
+import { fetchWithAuth } from "@/lib/auth/client-guard"
 
 type Job = {
   key: string
@@ -64,7 +65,7 @@ export default function FillUpsPage() {
   async function loadJobs() {
     setLoading(true)
     try {
-      const res = await fetch("/api/jobs")
+      const res = await fetchWithAuth("/api/jobs")
       const data = await res.json()
       const rawJobs = data.jobs || []
       const mapped: Job[] = rawJobs.map((j: any, i: number) => ({
@@ -94,7 +95,7 @@ export default function FillUpsPage() {
   async function runScrape() {
     setScraping(true)
     try {
-      const res = await fetch("/api/scrape", {
+      const res = await fetchWithAuth("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: searchQuery || "desenvolvedor software", location: "Brasil" }),
@@ -102,7 +103,7 @@ export default function FillUpsPage() {
       const data = await res.json()
       if (data.results && data.results.length > 0) {
         for (const job of data.results) {
-          await fetch("/api/jobs", {
+          await fetchWithAuth("/api/jobs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "add", ...job }),
@@ -119,7 +120,7 @@ export default function FillUpsPage() {
   async function runRank() {
     setRanking(true)
     try {
-      await fetch("/api/jobs/rank", {
+      await fetchWithAuth("/api/jobs/rank", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobs }),

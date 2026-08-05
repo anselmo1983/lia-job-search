@@ -5,6 +5,7 @@ import { ExternalLink, Search, Radar, Loader2, Star, Sparkles, Filter } from "lu
 import { PageHeader } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 import JobApplyModal from "@/components/job-apply-modal"
+import { fetchWithAuth } from "@/lib/auth/client-guard"
 
 type Job = {
   id: string
@@ -61,7 +62,7 @@ export default function JobsPage() {
   async function loadJobs() {
     setLoading(true)
     try {
-      const res = await fetch("/api/jobs")
+      const res = await fetchWithAuth("/api/jobs")
       const data = await res.json()
       setJobs(data.jobs || [])
     } catch (err) {
@@ -76,7 +77,7 @@ export default function JobsPage() {
     setScraping(true)
     setSearchResults([])
     try {
-      const res = await fetch("/api/scrape", {
+      const res = await fetchWithAuth("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: q || "desenvolvedor", location: searchLocation }),
@@ -85,7 +86,7 @@ export default function JobsPage() {
       if (data.results) {
         setSearchResults(data.results)
         for (const job of data.results) {
-          await fetch("/api/jobs", {
+          await fetchWithAuth("/api/jobs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "add", ...job }),
@@ -102,7 +103,7 @@ export default function JobsPage() {
   async function rankJobs() {
     setRanking(true)
     try {
-      await fetch("/api/jobs/rank", {
+      await fetchWithAuth("/api/jobs/rank", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobs }),

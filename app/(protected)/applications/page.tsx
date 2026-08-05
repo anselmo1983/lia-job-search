@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent } from "react"
 import { BriefcaseBusiness, Plus, Loader2, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/app-shell"
+import { fetchWithAuth } from "@/lib/auth/client-guard"
 
 const inputClass = "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none placeholder:text-slate-600 focus:border-emerald-400"
 
@@ -38,7 +39,7 @@ export default function ApplicationsPage() {
   async function loadApplications() {
     setLoading(true)
     try {
-      const res = await fetch("/api/outcome")
+      const res = await fetchWithAuth("/api/outcome")
       const data = await res.json()
       setApplications(data.applications || [])
     } catch (err) { console.error(err) }
@@ -50,7 +51,7 @@ export default function ApplicationsPage() {
     if (!form.company.trim() || !form.role.trim()) return
     setSaving(true)
     try {
-      await fetch("/api/outcome", {
+      await fetchWithAuth("/api/outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

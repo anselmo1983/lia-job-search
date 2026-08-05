@@ -4,6 +4,7 @@ import path from "node:path"
 
 import { bifrostChat } from "@/lib/inference/bifrost"
 import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
+import { requireSession } from "@/lib/auth/server"
 
 const jobsPath = dataPath("job_scraper", "seen_jobs.json")
 const profilePath = dataPath("profile", "profile.json")
@@ -127,6 +128,8 @@ async function loadPersistedProfile(): Promise<string> {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const body = await request.json()
 

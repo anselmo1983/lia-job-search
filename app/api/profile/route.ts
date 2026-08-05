@@ -2,12 +2,15 @@ import { NextResponse } from "next/server"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
+import { requireSession } from "@/lib/auth/server"
 
 const root = process.cwd()
 const jsonProfilePath = dataPath("profile", "profile.json")
 const mdProfilePath = path.join(root, ".claude/skills/job-application-assistant/01-candidate-profile.md")
 
 export async function GET() {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     // 1. Tenta ler o perfil estruturado em JSON ($LIA_DATA_DIR/profile/profile.json)
     try {
@@ -30,6 +33,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const data = await request.json()
     const content = typeof data.profile === "string" ? data.profile : JSON.stringify(data.profile, null, 2)

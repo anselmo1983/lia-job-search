@@ -1,9 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { BarChart3, BriefcaseBusiness, CalendarDays, FileText, LayoutDashboard, ListTodo, Package, Settings, Sparkles, Users, Workflow } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { BarChart3, BriefcaseBusiness, CalendarDays, FileText, LayoutDashboard, ListTodo, LogOut, Package, Settings, Sparkles, Users, Workflow } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { authClient } from "@/lib/auth/client"
 
 const navigation = [
   { href: "/", label: "Visão Geral", icon: LayoutDashboard },
@@ -22,6 +23,14 @@ const navigation = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { data: session, isPending } = authClient.useSession()
+
+  async function handleSignOut() {
+    await authClient.signOut()
+    router.push("/login")
+  }
+
   return (
     <div className="min-h-screen bg-[#0E1418] text-[#F2F4F3]">
       <a href="#main-content" className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg bg-emerald-400 px-4 py-2 font-semibold text-slate-950 transition focus:translate-y-0">
@@ -57,6 +66,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )
           })}
         </nav>
+        {/* Session footer */}
+        <div className="hidden border-t border-[#3D474D]/40 p-3 lg:block">
+          <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-[#D0D1CF]">
+                {isPending ? "…" : (session?.user?.email || "Sessão")}
+              </p>
+              <p className="text-[10px] text-[#6B7478]">Proprietário</p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              title="Sair"
+              className="shrink-0 rounded-md p-1.5 text-[#A6AEB2] transition hover:bg-[#1C262C] hover:text-[#F2F4F3]"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </aside>
       <main id="main-content" tabIndex={-1} className="lg:pl-64">
         <div className="mx-auto max-w-7xl p-5 sm:p-8">

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Package, Loader2, CheckCircle, AlertCircle, Clock, ExternalLink, Plus, Trash2 } from "lucide-react"
 import { PageHeader } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
+import { fetchWithAuth } from "@/lib/auth/client-guard"
 
 const inputClass = "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none placeholder:text-slate-600 focus:border-teal"
 
@@ -38,7 +39,7 @@ export default function BatchPage() {
 
   async function loadJobs() {
     try {
-      const res = await fetch("/api/jobs")
+      const res = await fetchWithAuth("/api/jobs")
       const data = await res.json()
       const jobs = (data.jobs || []).filter((j: any) => j.score === null).slice(0, 50)
       setBatchJobs(jobs.map((j: any) => ({
@@ -70,7 +71,7 @@ export default function BatchPage() {
     setBatchStatus(null)
     
     try {
-      const res = await fetch("/api/batch", {
+      const res = await fetchWithAuth("/api/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobs: batchJobs })
@@ -91,7 +92,7 @@ export default function BatchPage() {
     setPolling(true)
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/batch?batchId=${encodeURIComponent(batchId)}`)
+        const res = await fetchWithAuth(`/api/batch?batchId=${encodeURIComponent(batchId)}`)
         const data = await res.json()
         setBatchStatus(prev => ({ ...prev, ...data }))
         

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Loader2, X, CheckCircle, AlertCircle, FileText, Mail, ClipboardCheck, Copy, Download, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { fetchWithAuth } from "@/lib/auth/client-guard"
 
 type Job = { id: string; title: string; company: string; description?: string; location?: string; url?: string }
 
@@ -21,7 +22,7 @@ export default function JobApplyModal({ job, onClose, onComplete }: { job: Job; 
     setLoading(true)
     setError("")
     try {
-      const res = await fetch("/api/apply", {
+      const res = await fetchWithAuth("/api/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ job }),
@@ -40,8 +41,8 @@ export default function JobApplyModal({ job, onClose, onComplete }: { job: Job; 
   async function saveApplication() {
     setLoading(true)
     try {
-      if (cv) await fetch("/api/cv/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: cv, company: job.company, role: job.title, format: "md" }) })
-      await fetch("/api/outcome", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company: job.company, role: job.title, status: "applied", notes: `Candidatura gerada via UI. Score: ${evaluation?.fitScore || "N/A"}` }) })
+      if (cv) await fetchWithAuth("/api/cv/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: cv, company: job.company, role: job.title, format: "md" }) })
+      await fetchWithAuth("/api/outcome", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company: job.company, role: job.title, status: "applied", notes: `Candidatura gerada via UI. Score: ${evaluation?.fitScore || "N/A"}` }) })
       setStep("done")
       if (onComplete) onComplete()
     } catch (err) { setError("Erro ao salvar candidatura") }

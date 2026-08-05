@@ -36,7 +36,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_STANDALONE=true
 
 RUN corepack enable \
- && corepack prepare pnpm@11.18.0 --activate
+ && corepack prepare pnpm@11.18.0 --activate \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -45,7 +48,9 @@ COPY . .
 
 RUN pnpm build \
  && mkdir -p /app/canvas-libs/@napi-rs \
- && find /app/node_modules/.pnpm -maxdepth 1 -name "*canvas*" -exec sh -c 'cp -r -L {}/node_modules/@napi-rs/* /app/canvas-libs/@napi-rs/' \;
+ && find /app/node_modules/.pnpm -maxdepth 1 -name "*canvas*" -exec sh -c 'cp -r -L {}/node_modules/@napi-rs/* /app/canvas-libs/@napi-rs/' \; \
+ && mkdir -p /app/sqlite-libs \
+ && find /app/node_modules/.pnpm -maxdepth 1 -name "better-sqlite3*" -exec sh -c 'cp -r -L {}/node_modules/better-sqlite3 /app/sqlite-libs/' \;
 
 
 FROM oven/bun:1.3.14 AS bun-runtime
@@ -78,6 +83,7 @@ COPY --from=bun-runtime /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/canvas-libs/@napi-rs ./node_modules/@napi-rs
+COPY --from=builder --chown=nextjs:nodejs /app/sqlite-libs/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/.agents ./.agents
 

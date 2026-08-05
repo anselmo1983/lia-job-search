@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server"
 import { completeJson, getDefaultModel } from "@/lib/inference/bifrost"
+import { requireSession } from "@/lib/auth/server"
 
 // CT223 — preparação para entrevista. Arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
 // Nenhum provider direto; nenhuma chave vinda do cliente.
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const { job, cv } = await request.json()
     if (!job?.title) return NextResponse.json({ error: "Vaga inválida" }, { status: 400 })

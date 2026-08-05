@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "node:fs"
 import path from "node:path"
+import { requireSession } from "@/lib/auth/server"
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const { company, role, status, notes, date } = await request.json()
     const trackerPath = path.join(process.cwd(), "job_search_tracker.csv")
@@ -21,6 +24,8 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const csv = await fs.readFile(path.join(process.cwd(), "job_search_tracker.csv"), "utf8")
     const lines = csv.trim().split("\n")

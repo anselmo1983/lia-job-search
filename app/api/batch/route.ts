@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { completeJson, getDefaultModel } from "@/lib/inference/bifrost"
+import { requireSession } from "@/lib/auth/server"
 
 // CT223 — batch de vagas. Arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
 // Nenhum provider direto (Moonshot/OpenAI/Anthropic). Provider/model routing
@@ -95,6 +96,8 @@ URL: ${job.url || "N/A"}`,
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const { jobs } = await request.json()
     if (!Array.isArray(jobs) || jobs.length === 0) {
@@ -138,6 +141,8 @@ export async function POST(request: Request) {
 
 // GET: consultar status de um batch (estado em memória)
 export async function GET(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const { searchParams } = new URL(request.url)
     const batchId = searchParams.get("batchId")

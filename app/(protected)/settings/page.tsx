@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent, useCallback } from "react"
 import { Upload, User, Loader2, CheckCircle2, XCircle, ShieldCheck, Server, FileText, RefreshCw } from "lucide-react"
 import { PageHeader } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
+import { fetchWithAuth } from "@/lib/auth/client-guard"
 
 const MIN_PROFILE_CHARS = 200
 
@@ -62,7 +63,7 @@ export default function SettingsPage() {
   const loadStatus = useCallback(async () => {
     setStatusLoading(true)
     try {
-      const res = await fetch("/api/inference/status")
+      const res = await fetchWithAuth("/api/inference/status")
       const data = await res.json()
       setBifrost({ ...emptyBifrost, ...data })
     } catch {
@@ -94,7 +95,7 @@ export default function SettingsPage() {
     try {
       const fd = new FormData()
       fd.append("file", fileInput.files[0])
-      const res = await fetch("/api/profile/upload-cv", { method: "POST", body: fd })
+      const res = await fetchWithAuth("/api/profile/upload-cv", { method: "POST", body: fd })
       const data = await res.json()
       if (res.ok && data.success) {
         setUploadedFile(data.fileName)
@@ -117,7 +118,7 @@ export default function SettingsPage() {
     setProfile(null)
     setExtracted(false)
     try {
-      const res = await fetch("/api/profile/extract", {
+      const res = await fetchWithAuth("/api/profile/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: profileText }),

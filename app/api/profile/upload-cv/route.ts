@@ -4,6 +4,7 @@ import path from "node:path"
 // @ts-ignore
 import pdfParse from "pdf-parse/lib/pdf-parse.js"
 import { dataPath } from "@/lib/runtime/data-directory"
+import { requireSession } from "@/lib/auth/server"
 
 // Política de validação do texto extraído
 const MIN_EXTRACTED_CHARS = 200
@@ -16,6 +17,8 @@ const PLACEHOLDER_PATTERNS = [
 ]
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   let savedPath: string | null = null
 
   // Arquivo inválido: remove o que foi persistido — nada de lixo silencioso.

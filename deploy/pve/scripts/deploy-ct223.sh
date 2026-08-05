@@ -20,7 +20,7 @@ set -euo pipefail
 APP_DIR="/opt/lia-job-search"
 REPO_URL="https://github.com/anselmo1983/lia-job-search.git"
 REPO_BRANCH="master"
-COMMIT_PIN="650389e5bdd92220c23e3b48371aabfb93d427f8"
+COMMIT_PIN=""
 CONTAINER="lia-job-search"
 PORT="3000"
 
@@ -45,6 +45,14 @@ BIFROST_MODEL_DEFAULT=
 BIFROST_MODEL_REVIEW=
 LIA_DATA_DIR=/app/data
 APP_COMMIT=
+# --- Auth (Better Auth + OAuth) — CT224 ---
+BETTER_AUTH_URL=
+AUTH_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+AUTH_ALLOWED_EMAIL=
 ENV
 else
   echo "INFO: ${APP_DIR}/runtime.env exists — leaving untouched (fill BIFROST_* yourself if needed)"
@@ -56,6 +64,7 @@ if [[ ! -d "${APP_DIR}/src/.git" ]]; then
 fi
 cd "${APP_DIR}/src"
 git fetch origin
+COMMIT_PIN="${APP_COMMIT:-$(git rev-parse "origin/${REPO_BRANCH}")}"
 if [[ "$(git rev-parse HEAD)" != "${COMMIT_PIN}" ]]; then
   git checkout "${COMMIT_PIN}"
 fi
@@ -64,9 +73,9 @@ fi
 install -m 0644 compose.yml "${APP_DIR}/compose.yml"
 
 # --- build & start -----------------------------------------------------------
-cd "${APP_DIR}"
-docker compose build --pull
-docker compose up -d --remove-orphans
+cd "${APP_DIR}/src"
+docker compose --project-directory "${APP_DIR}/src" -f "${APP_DIR}/compose.yml" build --pull
+docker compose --project-directory "${APP_DIR}/src" -f "${APP_DIR}/compose.yml" up -d --remove-orphans
 
 # --- postcondition: health + bifrost reachability ----------------------------
 echo "--- waiting for ${CONTAINER} ---"

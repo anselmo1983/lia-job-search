@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import { completeJson, getDefaultModel } from "@/lib/inference/bifrost"
 import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
+import { requireSession } from "@/lib/auth/server"
 
 // CT223 — extração de perfil. Arquitetura: UI → CT223 → lib/inference/bifrost.ts → CT109.
 // Nenhuma credencial vem do cliente; o Bifrost (CT109) é a autoridade de inferência.
@@ -29,6 +30,8 @@ Retorne APENAS JSON com a seguinte estrutura:
 Se um campo não existir no currículo, use string vazia ou array vazio. Não invente informações.`
 
 export async function POST(request: Request) {
+  const unauthorized = await requireSession()
+  if (unauthorized) return unauthorized
   try {
     const { text } = await request.json()
     if (!text || typeof text !== "string") {
