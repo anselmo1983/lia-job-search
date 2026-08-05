@@ -35,6 +35,30 @@ permissions:
   contents: read
 
 jobs:
+  validate-env:
+    name: Validate environment variables
+    # Only runs on the production repo — forks won't have the required secrets
+    # configured and would fail on every PR. Forks can set up their own secrets
+    # and remove this guard if they want to enforce env validation.
+    if: github.repository == 'anselmo1983/lia-job-search'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate required environment variables
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          BIFROST_BASE_URL: ${{ secrets.BIFROST_BASE_URL }}
+          BIFROST_VIRTUAL_KEY: ${{ secrets.BIFROST_VIRTUAL_KEY }}
+        run: node tools/validate-env.mjs production
+
   lint:
     name: Lint skills, commands, settings
     runs-on: ubuntu-latest

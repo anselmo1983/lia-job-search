@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/lib/db"
 import { requireSession, getServerSession } from "@/lib/auth/server"
 import { runLegacyMigration } from "@/lib/db/legacy-migration"
+import { syncCandidateProfile } from "@/lib/db/profile-sync"
+import { CandidateProfileSchema } from "@/lib/db/profile-schema"
 
 export async function GET() {
   const unauthorized = await requireSession()
@@ -14,31 +16,33 @@ export async function GET() {
     }
 
     const db = getDb()
-    let profile = db.prepare("SELECT * FROM profile WHERE user_id = ?").get(session.user.id) as any
+    let profileRow = db.prepare("SELECT * FROM profile WHERE user_id = ?").get(session.user.id) as any
 
-    if (!profile) {
-      // Tenta rodar migração legado uma vez se nenhum perfil for encontrado
+    if (!profileRow) {
+      // Tenta migração legado se nenhum perfil SQLite existir
       await runLegacyMigration()
-      profile = db.prepare("SELECT * FROM profile WHERE user_id = ?").get(session.user.id) as any
+      profileRow = db.prepare("SELECT * FROM profile WHERE user_id = ?").get(session.user.id) as any
     }
 
-    if (profile) {
+    if (profileRow) {
       let structured = null
-      if (profile.structured_json) {
+      if (profileRow.structured_json) {
         try {
-          structured = JSON.parse(profile.structured_json)
+          const parsed = JSON.parse(profileRow.structured_json)
+          const result = CandidateProfileSchema.safeParse(parsed)
+          structured = result.success ? result.data : parsed
         } catch {}
       }
 
       return NextResponse.json({
-        profile: profile.summary || JSON.stringify(profile, null, 2),
-        structured: structured || profile,
+        profile: profileRow.summary || JSON.stringify(profileRow, null, 2),
+        structured: structured || profileRow,
       })
     }
 
     return NextResponse.json({
       profile: null,
-      message: "Perfil não encontrado. Envie seu currículo para extrair seu perfil.",
+      message: "Perfil não encontrado. Envie seu currículo ou preencha suas informações.",
     })
   } catch (error) {
     return NextResponse.json({ error: "Falha ao obter perfil" }, { status: 500 })
@@ -56,36 +60,51 @@ export async function POST(request: Request) {
     }
 
     const data = await request.json()
-    const db = getDb()
-
     const inputProfile = data.profile || data
-    const fullName = inputProfile.full_name || inputProfile.name || session.user.name || "Anselmo Farias"
-    const email = inputProfile.email || session.user.email
-    const phone = inputProfile.phone || null
-    const location = inputProfile.location || null
-    const headline = inputProfile.headline || null
-    const summary = typeof inputProfile === "string" ? inputProfile : inputProfile.summary || JSON.stringify(inputProfile)
-    const linkedin = inputProfile.linkedin_url || null
-    const github = inputProfile.github_url || null
-    const structuredJson = typeof inputProfile === "object" ? JSON.stringify(inputProfile) : null
 
-    const existing = db.prepare("SELECT id FROM profile WHERE user_id = ?").get(session.user.id)
+    // Se vier um objeto parcial ou simplificado, ajusta campos básicos antes de validar
+    if (typeof inputProfile === "object" && inputProfile !== null && !inputProfile.identity) {
+      const formattedInput = {
+        identity: {
+          fullName: inputProfile.full_name || inputProfile.name || session.user.name || "Candidato LJS",
+          email: inputProfile.email || session.user.email || "user@example.com",
+          phone: inputProfile.phone || "",
+          location: inputProfile.location || "",
+          headline: inputProfile.headline || "",
+          summary: inputProfile.summary || "",
+          linkedinUrl: inputProfile.linkedin_url || inputProfile.linkedin || "",
+          githubUrl: inputProfile.github_url || inputProfile.github || "",
+          languages: inputProfile.languages || [],
+          employmentStatus: inputProfile.status || "Disponível",
+        },
+        targetPreferences: {
+          targetRoles: inputProfile.target_roles || [],
+          targetSectors: inputProfile.target_sectors || [],
+          commuteConstraints: inputProfile.commute_constraints || "",
+          dealbreakers: inputProfile.dealbreakers || [],
+        },
+        skills: {
+          primary: Array.isArray(inputProfile.skills?.primary) ? inputProfile.skills.primary : (typeof inputProfile.skills === "string" ? [inputProfile.skills] : []),
+          secondary: Array.isArray(inputProfile.skills?.secondary) ? inputProfile.skills.secondary : [],
+          domains: Array.isArray(inputProfile.skills?.domains) ? inputProfile.skills.domains : [],
+          tools: Array.isArray(inputProfile.skills?.tools) ? inputProfile.skills.tools : [],
+        },
+        experiences: inputProfile.experiences || [],
+        education: inputProfile.education || [],
+        certifications: inputProfile.certifications || [],
+      }
 
-    if (existing) {
-      db.prepare(`
-        UPDATE profile 
-        SET full_name = ?, email = ?, phone = ?, location = ?, headline = ?, summary = ?, linkedin_url = ?, github_url = ?, structured_json = ?, updated_at = datetime('now')
-        WHERE user_id = ?
-      `).run(fullName, email, phone, location, headline, summary, linkedin, github, structuredJson, session.user.id)
-    } else {
-      db.prepare(`
-        INSERT INTO profile (id, user_id, full_name, email, phone, location, headline, summary, linkedin_url, github_url, structured_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(crypto.randomUUID(), session.user.id, fullName, email, phone, location, headline, summary, linkedin, github, structuredJson)
+      const synced = await syncCandidateProfile(session.user.id, formattedInput)
+      return NextResponse.json({ success: true, profile: synced })
     }
 
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: "Falha ao salvar perfil" }, { status: 500 })
+    const synced = await syncCandidateProfile(session.user.id, inputProfile)
+    return NextResponse.json({ success: true, profile: synced })
+  } catch (error: any) {
+    console.error("Erro no salvamento do perfil:", error)
+    return NextResponse.json(
+      { error: "Falha ao salvar perfil", details: error?.errors || String(error) },
+      { status: 400 }
+    )
   }
 }

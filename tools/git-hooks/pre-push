@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# tools/git-hooks/pre-push — Pre-push hook for lia-job-search.
+#
+# Validates environment variables before allowing pushes to production branches.
+# Install: pnpm install (runs the prepare script automatically)
+# Manual:  bash tools/install-hooks.sh
+#
+# Exit 0 = allow push, Exit 1 = block push.
+
+set -euo pipefail
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+# Branches that trigger env validation before push.
+PRODUCTION_BRANCHES="master main production deploy"
+
+# ── Resolve project root ──────────────────────────────────────────────────────
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$HOOK_DIR/../.." && pwd)"
+
+# ── Read pushed refs ──────────────────────────────────────────────────────────
+PUSH_TO_PRODUCTION=false
+
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+  # Extract branch name from refs/heads/... or refs/tags/...
+  BRANCH="${LOCAL_REF#refs/heads/}"
+  BRANCH="${BRANCH#refs/tags/}"
+
+  for PROD_BRANCH in $PRODUCTION_BRANCHES; do
+    if [ "$BRANCH" = "$PROD_BRANCH" ]; then
+      PUSH_TO_PRODUCTION=true
+      break 2
+    fi
+  done
+done
+
+# ── Skip validation for non-production pushes ─────────────────────────────────
+if [ "$PUSH_TO_PRODUCTION" = false ]; then
+  exit 0
+fi
+
+# ── Run environment validation ────────────────────────────────────────────────
+echo ""
+echo "🔍 Pre-push: validating environment variables for production deployment..."
+echo ""
+
+cd "$PROJECT_ROOT"
+
+node tools/validate-env.mjs production
