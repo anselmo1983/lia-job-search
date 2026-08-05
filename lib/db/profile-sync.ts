@@ -173,3 +173,27 @@ export async function syncCandidateProfile(userId: string, rawProfile: unknown):
 
   return profile
 }
+
+export function getProfileSync(): CandidateProfile | null {
+  try {
+    const db = getDb()
+    const row = db.prepare("SELECT structured_json FROM profile ORDER BY updated_at DESC LIMIT 1").get() as
+      | { structured_json: string }
+      | undefined
+
+    if (row?.structured_json) {
+      return CandidateProfileSchema.parse(JSON.parse(row.structured_json))
+    }
+  } catch {}
+
+  try {
+    const jsonPath = dataPath("profile", "profile.json")
+    if (fs.existsSync(jsonPath)) {
+      const content = fs.readFileSync(jsonPath, "utf-8")
+      return CandidateProfileSchema.parse(JSON.parse(content))
+    }
+  } catch {}
+
+  return null
+}
+

@@ -1,12 +1,20 @@
 import { CandidateProfile } from "@/lib/db/profile-schema"
 import { getDb } from "@/lib/db"
 
+export interface SubScores {
+  skillScore: number
+  titleScore: number
+  locationScore: number
+  sectorScore: number
+}
+
 export interface FitResult {
   score: number
   fit: "strong" | "moderate" | "weak"
   strengths: string[]
   gaps: string[]
   reasoning: string
+  subScores: SubScores
 }
 
 export interface JobInput {
@@ -133,6 +141,12 @@ export function calculateJobFit(job: JobInput, profile: CandidateProfile): FitRe
     strengths: Array.from(new Set(strengths)),
     gaps: Array.from(new Set(gaps)),
     reasoning,
+    subScores: {
+      skillScore: Math.round(skillScore),
+      titleScore: Math.round(titleScore),
+      locationScore: Math.round(locationScore),
+      sectorScore: Math.round(sectorScore),
+    },
   }
 }
 

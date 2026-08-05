@@ -5,6 +5,8 @@ import crypto from "node:crypto"
 import { getDb } from "@/lib/db"
 import { dataPath } from "@/lib/runtime/data-directory"
 
+export type SourceTier = "tier0_ats" | "tier1_aggregator" | "tier2_scraper"
+
 export interface DiscoveredJob {
   id: string
   externalId?: string
@@ -15,24 +17,28 @@ export interface DiscoveredJob {
   description: string
   date: string
   source: string
+  tier: SourceTier
   status: string
   fit: string
   score: number | null
+  urlHash: string
   contentHash: string
 }
 
 export interface PortalDiagnostic {
   portal: string
+  tier: SourceTier
   enabled: boolean
   failed: boolean
   returned: number
 }
 
-interface Portal {
+export interface SourceAdapter {
   name: string
+  tier: SourceTier
   cliPath: string
   buildArgs: (query: string, location: string) => string[]
-  normalize: (raw: Record<string, unknown>, source: string) => DiscoveredJob | null
+  normalize: (raw: Record<string, unknown>, source: string, tier: SourceTier) => DiscoveredJob | null
 }
 
 export function canonicalJobUrl(input: string): string {
@@ -41,6 +47,11 @@ export function canonicalJobUrl(input: string): string {
     const url = new URL(input.trim())
     url.hash = ""
     url.hostname = url.hostname.toLowerCase()
+
+    // Remove barras no final do path
+    if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+      url.pathname = url.pathname.slice(0, -1)
+    }
 
     const trackingParams = [
       "utm_source",
@@ -56,6 +67,8 @@ export function canonicalJobUrl(input: string): string {
       "tk",
       "ref",
       "sp",
+      "gh_jid",
+      "lipi",
     ]
 
     for (const param of trackingParams) {
@@ -69,24 +82,33 @@ export function canonicalJobUrl(input: string): string {
   }
 }
 
-export function generateJobHash(title: string, company: string, url: string): string {
-  const canonicalUrl = canonicalJobUrl(url)
-  const normalizedTitle = title.toLowerCase().trim().replace(/\s+/g, " ")
-  const normalizedCompany = company.toLowerCase().trim().replace(/\s+/g, " ")
-  const rawString = `${normalizedTitle}|${normalizedCompany}|${canonicalUrl}`
+export function generateUrlHash(url: string): string {
+  const canonical = canonicalJobUrl(url)
+  return crypto.createHash("sha256").update(canonical).digest("hex")
+}
+
+export function generateContentHash(title: string, company: string, descriptionSnippet: string): string {
+  const normTitle = title.toLowerCase().trim().replace(/\s+/g, " ")
+  const normCompany = company.toLowerCase().trim().replace(/\s+/g, " ")
+  const normSnippet = descriptionSnippet.slice(0, 500).toLowerCase().trim().replace(/\s+/g, " ")
+  const rawString = `${normTitle}|${normCompany}|${normSnippet}`
   return crypto.createHash("sha256").update(rawString).digest("hex")
 }
 
-function isPortalEnabled(portal: Portal): boolean {
-  const skillRoot = portal.cliPath.split("/cli/", 1)[0]
+export function generateJobHash(title: string, company: string, url: string, description = ""): string {
+  return generateContentHash(title, company, description || canonicalJobUrl(url))
+}
+
+function isAdapterEnabled(adapter: SourceAdapter): boolean {
+  const skillRoot = adapter.cliPath.split("/cli/", 1)[0]
   const skillPath = path.join(process.cwd(), skillRoot, "SKILL.md")
   if (!fs.existsSync(skillPath)) return false
   const content = fs.readFileSync(skillPath, "utf-8")
   return !/^enabled:\s*false\b/m.test(content)
 }
 
-function runPortalCli(portal: Portal, query: string, location: string): { results: Record<string, unknown>[]; failed: boolean } {
-  const args = ["run", portal.cliPath, "search", ...portal.buildArgs(query, location), "--format", "json"]
+function runAdapterCli(adapter: SourceAdapter, query: string, location: string): { results: Record<string, unknown>[]; failed: boolean } {
+  const args = ["run", adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
   let result = spawnSync("bun", args, {
     cwd: process.cwd(),
     timeout: 25_000,
@@ -95,7 +117,7 @@ function runPortalCli(portal: Portal, query: string, location: string): { result
   })
 
   if (result.error || result.status !== 0) {
-    const tsxArgs = ["tsx", portal.cliPath, "search", ...portal.buildArgs(query, location), "--format", "json"]
+    const tsxArgs = ["tsx", adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
     result = spawnSync("npx", tsxArgs, {
       cwd: process.cwd(),
       timeout: 25_000,
@@ -113,16 +135,18 @@ function runPortalCli(portal: Portal, query: string, location: string): { result
   }
 }
 
-// Portais Suportados
-const linkedin: Portal = {
+// Adaptadores Suportados (Tiers 0 e 1)
+const linkedinAdapter: SourceAdapter = {
   name: "linkedin",
+  tier: "tier1_aggregator",
   cliPath: ".agents/skills/linkedin-search/cli/src/cli.ts",
   buildArgs: (q, l) => ["-q", q, "-l", l || "Remote", "--jobage", "30"],
-  normalize: (raw, source) => {
+  normalize: (raw, source, tier) => {
     if (!raw.id || !raw.url) return null
     const title = String(raw.title || "(sem título)")
     const company = String(raw.company || "Empresa não informada")
     const url = String(raw.url)
+    const description = String(raw.description || "")
     return {
       id: `${source}_${raw.id}`,
       externalId: String(raw.id),
@@ -130,26 +154,30 @@ const linkedin: Portal = {
       company,
       location: String(raw.location || "Remote"),
       url,
-      description: "",
+      description,
       date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
+      tier,
       status: "discovered",
       fit: "unrated",
       score: null,
-      contentHash: generateJobHash(title, company, url),
+      urlHash: generateUrlHash(url),
+      contentHash: generateContentHash(title, company, description),
     }
   },
 }
 
-const freehire: Portal = {
+const freehireAdapter: SourceAdapter = {
   name: "freehire",
+  tier: "tier1_aggregator",
   cliPath: ".agents/skills/freehire-search/cli/src/cli.ts",
   buildArgs: (q) => ["-q", q, "--limit", "15"],
-  normalize: (raw, source) => {
+  normalize: (raw, source, tier) => {
     if (!raw.id || !raw.url) return null
     const title = String(raw.title || "(sem título)")
     const company = String(raw.company || "Empresa não informada")
     const url = String(raw.url)
+    const description = String(raw.description || "")
     return {
       id: `${source}_${raw.id}`,
       externalId: String(raw.id),
@@ -157,26 +185,30 @@ const freehire: Portal = {
       company,
       location: String(raw.location || "Remoto"),
       url,
-      description: String(raw.description || ""),
+      description,
       date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
+      tier,
       status: "discovered",
       fit: "unrated",
       score: null,
-      contentHash: generateJobHash(title, company, url),
+      urlHash: generateUrlHash(url),
+      contentHash: generateContentHash(title, company, description),
     }
   },
 }
 
-const indeedbr: Portal = {
+const indeedbrAdapter: SourceAdapter = {
   name: "indeed-br",
+  tier: "tier1_aggregator",
   cliPath: ".agents/skills/indeed-br-search/cli/src/cli.ts",
   buildArgs: (q, l) => ["-q", q, "-l", l || "Brasil", "--limit", "15"],
-  normalize: (raw, source) => {
+  normalize: (raw, source, tier) => {
     if (!raw.id || !raw.url) return null
     const title = String(raw.title || "(sem título)")
     const company = String(raw.company || "Empresa não informada")
     const url = String(raw.url)
+    const description = String(raw.description || "")
     return {
       id: `${source}_${raw.id}`,
       externalId: String(raw.id),
@@ -184,26 +216,30 @@ const indeedbr: Portal = {
       company,
       location: String(raw.location || "Brasil"),
       url,
-      description: String(raw.description || ""),
+      description,
       date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
+      tier,
       status: "discovered",
       fit: "unrated",
       score: null,
-      contentHash: generateJobHash(title, company, url),
+      urlHash: generateUrlHash(url),
+      contentHash: generateContentHash(title, company, description),
     }
   },
 }
 
-const jobindex: Portal = {
+const jobindexAdapter: SourceAdapter = {
   name: "jobindex",
+  tier: "tier1_aggregator",
   cliPath: ".agents/skills/jobindex-search/cli/src/cli.ts",
   buildArgs: (q, l) => ["-q", l ? `${q} ${l}` : q, "--jobage", "30"],
-  normalize: (raw, source) => {
+  normalize: (raw, source, tier) => {
     if (!raw.id || !raw.url) return null
     const title = String(raw.title || "(sem título)")
     const company = String(raw.company || "Empresa não informada")
     const url = String(raw.url)
+    const description = String(raw.description || "")
     return {
       id: `${source}_${raw.id}`,
       externalId: String(raw.id),
@@ -211,51 +247,58 @@ const jobindex: Portal = {
       company,
       location: String(raw.location || "Dinamarca"),
       url,
-      description: String(raw.description || ""),
+      description,
       date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
+      tier,
       status: "discovered",
       fit: "unrated",
       score: null,
-      contentHash: generateJobHash(title, company, url),
+      urlHash: generateUrlHash(url),
+      contentHash: generateContentHash(title, company, description),
     }
   },
 }
 
-const PORTALS: Portal[] = [linkedin, freehire, indeedbr, jobindex]
+const ADAPTERS: SourceAdapter[] = [linkedinAdapter, freehireAdapter, indeedbrAdapter, jobindexAdapter]
 
 export async function runMultiSourceDiscovery(query: string, location: string) {
   const diagnostics: PortalDiagnostic[] = []
   const allJobs: DiscoveredJob[] = []
-  const seenHashes = new Set<string>()
+  const seenUrlHashes = new Set<string>()
+  const seenContentHashes = new Set<string>()
 
-  for (const portal of PORTALS) {
-    if (!isPortalEnabled(portal)) {
-      diagnostics.push({ portal: portal.name, enabled: false, failed: false, returned: 0 })
+  for (const adapter of ADAPTERS) {
+    if (!isAdapterEnabled(adapter)) {
+      diagnostics.push({ portal: adapter.name, tier: adapter.tier, enabled: false, failed: false, returned: 0 })
       continue
     }
 
-    const { results, failed } = runPortalCli(portal, query, location)
+    const { results, failed } = runAdapterCli(adapter, query, location)
     let returned = 0
 
     for (const raw of results) {
-      const job = portal.normalize(raw, portal.name)
+      const job = adapter.normalize(raw, adapter.name, adapter.tier)
       if (!job) continue
 
-      if (seenHashes.has(job.contentHash)) continue
-      seenHashes.add(job.contentHash)
+      // Deduplicação Dupla (URL exact + Content fingerprint)
+      if (seenUrlHashes.has(job.urlHash) || seenContentHashes.has(job.contentHash)) {
+        continue
+      }
+      seenUrlHashes.add(job.urlHash)
+      seenContentHashes.add(job.contentHash)
 
       allJobs.push(job)
       returned++
     }
 
-    diagnostics.push({ portal: portal.name, enabled: true, failed, returned })
+    diagnostics.push({ portal: adapter.name, tier: adapter.tier, enabled: true, failed, returned })
   }
 
-  // Persistência em SQLite se DB estiver ativo
+  // Persistência em SQLite com auditoria de estado inicial
   try {
     const db = getDb()
-    const stmt = db.prepare(`
+    const stmtInsertJob = db.prepare(`
       INSERT INTO jobs (id, external_id, source, source_url, company, title, location, description, published_at, content_hash, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
@@ -265,8 +308,13 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
         updated_at = datetime('now')
     `)
 
+    const stmtHistory = db.prepare(`
+      INSERT INTO job_status_history (id, job_id, from_status, to_status, actor, notes)
+      VALUES (?, ?, NULL, 'discovered', 'agent', ?)
+    `)
+
     for (const job of allJobs) {
-      stmt.run(
+      stmtInsertJob.run(
         job.id,
         job.externalId || null,
         job.source,
@@ -279,6 +327,11 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
         job.contentHash,
         job.status
       )
+
+      // Inserir registro inicial de auditoria
+      try {
+        stmtHistory.run(`hist_${crypto.randomUUID()}`, job.id, `Vaga descoberta via ${job.source} (Tier: ${job.tier})`)
+      } catch {}
     }
   } catch (err) {
     console.error("Erro ao persistir vagas descobertas no SQLite:", err)

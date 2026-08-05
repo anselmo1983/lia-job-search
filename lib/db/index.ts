@@ -172,10 +172,21 @@ export function getDb(): Database.Database {
       error_code TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS job_status_history (
+      id TEXT PRIMARY KEY NOT NULL,
+      job_id TEXT NOT NULL REFERENCES jobs (id) ON DELETE CASCADE,
+      from_status TEXT,
+      to_status TEXT NOT NULL,
+      actor TEXT NOT NULL DEFAULT 'user',
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_resumes_sha256 ON resumes(sha256);
     CREATE INDEX IF NOT EXISTS idx_jobs_source_url ON jobs(source_url);
     CREATE INDEX IF NOT EXISTS idx_applications_user_job ON applications(user_id, job_id);
     CREATE INDEX IF NOT EXISTS idx_events_application ON application_events(application_id);
+    CREATE INDEX IF NOT EXISTS idx_job_status_history_job ON job_status_history(job_id);
   `)
 
   instance = db
