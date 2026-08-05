@@ -98,8 +98,13 @@ function normalizeJobs(data: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(data)) return data.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
   if (!data || typeof data !== "object") return []
   const record = data as Record<string, unknown>
-  const nested = record.jobs ?? record.results
+  const nested = record.jobs ?? record.results ?? record.seen
   if (Array.isArray(nested)) return normalizeJobs(nested)
+  if (nested && typeof nested === "object") {
+    return Object.entries(nested).flatMap(([key, value]) =>
+      value && typeof value === "object" ? [{ key, ...(value as Record<string, unknown>) }] : [],
+    )
+  }
   return Object.entries(record).flatMap(([key, value]) =>
     value && typeof value === "object" ? [{ key, ...(value as Record<string, unknown>) }] : [],
   )

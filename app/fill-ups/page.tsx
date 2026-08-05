@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowRight, CheckCircle2, Sparkles, Radar, Star, Loader2, Search, ExternalLink, Filter, Zap, Globe } from "lucide-react"
+import { ArrowRight, CheckCircle2, Sparkles, Radar, Star, Loader2, Search, ExternalLink, Filter, Zap, Globe, User, Upload } from "lucide-react"
 import { PageHeader } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 import JobApplyModal from "@/components/job-apply-modal"
@@ -56,10 +56,26 @@ export default function FillUpsPage() {
   const [minScore, setMinScore] = useState<number>(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSource, setSelectedSource] = useState<string>("all")
+  const [profile, setProfile] = useState<any>(null)
 
   useEffect(() => {
     loadJobs()
+    loadProfile()
   }, [])
+
+  async function loadProfile() {
+    try {
+      const res = await fetch("/api/profile")
+      const data = await res.json()
+      if (data.structured) setProfile(data.structured)
+      else if (data.profile) {
+        try {
+          const parsed = JSON.parse(data.profile)
+          setProfile(parsed)
+        } catch {}
+      }
+    } catch {}
+  }
 
   async function loadJobs() {
     setLoading(true)
@@ -91,13 +107,15 @@ export default function FillUpsPage() {
     setLoading(false)
   }
 
-  async function runScrape() {
+  async function runScrape(customQuery?: string) {
     setScraping(true)
     try {
+      const queryToUse = customQuery || searchQuery || profile?.role || (Array.isArray(profile?.skills?.primary) ? profile.skills.primary[0] : profile?.skills?.primary) || "desenvolvedor software"
+      const locationToUse = profile?.location || "Brasil"
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery || "desenvolvedor software", location: "Brasil" }),
+        body: JSON.stringify({ query: queryToUse, location: locationToUse }),
       })
       const data = await res.json()
       if (data.results && data.results.length > 0) {
@@ -109,6 +127,8 @@ export default function FillUpsPage() {
           })
         }
       }
+      // Ranquear automaticamente após buscar novas vagas
+      await runRank()
       await loadJobs()
     } catch (err) {
       console.error("Erro ao executar scraper:", err)
@@ -157,6 +177,52 @@ export default function FillUpsPage() {
         title="AI Job Search Fill-Ups"
         description="Seus melhores matches ranqueados por IA, prontos para gerar kits completos e avançar no pipeline de contratação."
       />
+
+      {/* Candidate Profile Sync Banner */}
+      <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/90 p-5 backdrop-blur">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <User className="h-5 w-5 text-emerald-400" />
+              <h3 className="font-semibold text-slate-100">
+                {profile?.name ? `Perfil de ${profile.name}` : "Busca Baseada no Seu Currículo"}
+              </h3>
+              {profile ? (
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-400/10 text-emerald-300 border border-emerald-400/20 font-medium">
+                  Currículo Carregado
+                </span>
+              ) : (
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/20 font-medium">
+                  Sem currículo enviado
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400">
+              {profile?.role ? `Cargo Alvo: ${profile.role} • ` : ""}
+              {profile?.skills?.primary ? `Skills Principais: ${Array.isArray(profile.skills.primary) ? profile.skills.primary.join(", ") : profile.skills.primary}` : "Envie seu currículo na aba de Configurações para que a IA busque vagas personalizadas exatamente para o seu perfil."}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/settings">
+              <Button variant="outline" size="sm" className="text-xs border-slate-700 text-slate-300">
+                <Upload className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
+                {profile ? "Atualizar Currículo" : "Enviar Currículo"}
+              </Button>
+            </Link>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => runScrape()}
+              disabled={scraping}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium"
+            >
+              {scraping ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Radar className="h-3.5 w-3.5 mr-1.5" />}
+              {scraping ? "Buscando e Ranqueando..." : "Buscar Vagas do Meu Perfil"}
+            </Button>
+          </div>
+        </div>
+      </section>
 
       {/* Header Actions & Filters */}
       <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900 p-5 space-y-4">

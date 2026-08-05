@@ -54,9 +54,26 @@ export default function JobsPage() {
   const [searchResults, setSearchResults] = useState<Job[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("all")
 
+  const [profile, setProfile] = useState<any>(null)
+
   useEffect(() => {
     loadJobs()
+    loadProfile()
   }, [])
+
+  async function loadProfile() {
+    try {
+      const res = await fetch("/api/profile")
+      const data = await res.json()
+      if (data.structured) setProfile(data.structured)
+      else if (data.profile) {
+        try {
+          const parsed = JSON.parse(data.profile)
+          setProfile(parsed)
+        } catch {}
+      }
+    } catch {}
+  }
 
   async function loadJobs() {
     setLoading(true)
@@ -71,7 +88,8 @@ export default function JobsPage() {
   }
 
   async function scrapeJobs(customQuery?: string) {
-    const q = customQuery ?? searchQuery ?? "desenvolvedor"
+    const defaultQuery = profile?.role || (Array.isArray(profile?.skills?.primary) ? profile.skills.primary[0] : profile?.skills?.primary) || "desenvolvedor"
+    const q = customQuery ?? (searchQuery.trim() ? searchQuery : defaultQuery)
     if (customQuery) setSearchQuery(customQuery)
     setScraping(true)
     setSearchResults([])
@@ -79,7 +97,7 @@ export default function JobsPage() {
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: q || "desenvolvedor", location: searchLocation }),
+        body: JSON.stringify({ query: q, location: profile?.location || searchLocation }),
       })
       const data = await res.json()
       if (data.results) {
@@ -91,6 +109,7 @@ export default function JobsPage() {
             body: JSON.stringify({ action: "add", ...job }),
           })
         }
+        await rankJobs()
         await loadJobs()
       }
     } catch (err) {
