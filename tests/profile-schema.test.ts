@@ -4,7 +4,7 @@ import { CandidateProfileSchema, CandidateProfileInput } from "../lib/db/profile
 function runTests() {
   console.log("Starting Candidate Profile Schema tests...")
 
-  const validProfile: CandidateProfileInput = {
+  const validProfile = {
     identity: {
       fullName: "Anselmo Farias",
       email: "anselmo@example.com",
