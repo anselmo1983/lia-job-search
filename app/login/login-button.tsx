@@ -80,6 +80,14 @@ export function LoginButton({ callbackURL, initialError }: LoginButtonProps) {
         callbackURL,
       })
 
+      const targetUrl = (res as { data?: { url?: string }; url?: string })?.data?.url || (res as { url?: string })?.url
+
+      if (targetUrl) {
+        setStatus("oauth_redirect")
+        window.location.href = targetUrl
+        return
+      }
+
       if (res?.error) {
         if (
           res.error.code === "ACCESS_DENIED" ||
@@ -91,9 +99,6 @@ export function LoginButton({ callbackURL, initialError }: LoginButtonProps) {
           setStatus("auth_error")
           setErrorMessage(res.error.message || "Falha na autenticação com o Google.")
         }
-      } else if (res?.data?.url) {
-        setStatus("oauth_redirect")
-        window.location.assign(res.data.url)
       } else {
         setStatus("oauth_redirect")
       }
