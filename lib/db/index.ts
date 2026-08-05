@@ -204,6 +204,22 @@ export function getDb(): Database.Database {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS interviews (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES user (id) ON DELETE CASCADE,
+      job_id TEXT REFERENCES jobs (id) ON DELETE SET NULL,
+      company TEXT NOT NULL,
+      role TEXT NOT NULL,
+      interview_type TEXT NOT NULL DEFAULT 'technical',
+      scheduled_at TEXT NOT NULL,
+      location_or_link TEXT,
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      notes TEXT,
+      prep_guide_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_resumes_sha256 ON resumes(sha256);
     CREATE INDEX IF NOT EXISTS idx_jobs_source_url ON jobs(source_url);
     CREATE INDEX IF NOT EXISTS idx_applications_user_job ON applications(user_id, job_id);
@@ -211,9 +227,11 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_job_status_history_job ON job_status_history(job_id);
     CREATE INDEX IF NOT EXISTS idx_compiled_resumes_user ON compiled_resumes(user_id);
     CREATE INDEX IF NOT EXISTS idx_compiled_resume_versions_resume ON compiled_resume_versions(resume_id, version_number);
+    CREATE INDEX IF NOT EXISTS idx_interviews_user ON interviews(user_id);
   `)
 
   instance = db
   return instance
 }
+
 
