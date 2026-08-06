@@ -97,10 +97,15 @@ export const auth = betterAuth({
 
 /** Sessão do usuário atual (páginas server e rotas de API), validada com a allowlist server-side. */
 export async function getServerSession() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) return null
-  if (!isEmailAllowed(session.user?.email)) return null
-  return session
+  try {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session) return null
+    if (!isEmailAllowed(session.user?.email)) return null
+    return session
+  } catch (error) {
+    logger.warn(`Falha não fatal ao verificar sessão: ${error}`, "auth/server")
+    return null
+  }
 }
 
 /**
@@ -108,12 +113,17 @@ export async function getServerSession() {
  * ou null se autorizado.
  */
 export async function requireSession(): Promise<NextResponse | null> {
-  const rawSession = await auth.api.getSession({ headers: await headers() })
-  if (!rawSession) {
+  try {
+    const rawSession = await auth.api.getSession({ headers: await headers() })
+    if (!rawSession) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isEmailAllowed(rawSession.user?.email)) {
+      return NextResponse.json({ error: "Acesso negado: e-mail fora da allowlist" }, { status: 403 })
+    }
+    return null
+  } catch (error) {
+    logger.warn(`Falha não fatal na validação de requireSession: ${error}`, "auth/server")
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
   }
-  if (!isEmailAllowed(rawSession.user?.email)) {
-    return NextResponse.json({ error: "Acesso negado: e-mail fora da allowlist" }, { status: 403 })
-  }
-  return null
 }

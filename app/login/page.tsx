@@ -12,7 +12,11 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string; error?: string }>
 }) {
-  const session = await getServerSession()
+  let session = null
+  try {
+    session = await getServerSession()
+  } catch {}
+
   if (session) {
     redirect("/")
   }
