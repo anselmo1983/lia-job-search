@@ -4,26 +4,12 @@ import path from "node:path"
 import crypto from "node:crypto"
 import { getDb } from "@/lib/db"
 import { dataPath } from "@/lib/runtime/data-directory"
+import type { CanonicalJob } from "../types/canonical-job"
+import { normalizeJob } from "../canonical/normalizer"
+import { deduplicate } from "../canonical/deduplication"
+import { mergeJobProvenance } from "../canonical/fingerprint"
 
 export type SourceTier = "tier0_ats" | "tier1_aggregator" | "tier2_scraper"
-
-export interface DiscoveredJob {
-  id: string
-  externalId?: string
-  title: string
-  company: string
-  location: string
-  url: string
-  description: string
-  date: string
-  source: string
-  tier: SourceTier
-  status: string
-  fit: string
-  score: number | null
-  urlHash: string
-  contentHash: string
-}
 
 export interface PortalDiagnostic {
   portal: string
@@ -38,7 +24,7 @@ export interface SourceAdapter {
   tier: SourceTier
   cliPath: string
   buildArgs: (query: string, location: string) => string[]
-  normalize: (raw: Record<string, unknown>, source: string, tier: SourceTier) => DiscoveredJob | null
+  normalize: (raw: Record<string, unknown>, source: string, tier: SourceTier) => CanonicalJob | null
 }
 
 export function canonicalJobUrl(input: string): string {
@@ -157,23 +143,22 @@ const linkedinAdapter: SourceAdapter = {
     const company = String(raw.company || "Empresa não informada")
     const url = String(raw.url)
     const description = String(raw.description || "")
-    return {
+    const location = String(raw.location || "Remote")
+    const date = raw.date ? String(raw.date).slice(0, 10) : undefined
+
+    return normalizeJob({
       id: `${source}_${raw.id}`,
-      externalId: String(raw.id),
-      title,
-      company,
-      location: String(raw.location || "Remote"),
-      url,
-      description,
-      date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
-      tier,
-      status: "discovered",
-      fit: "unrated",
-      score: null,
-      urlHash: generateUrlHash(url),
-      contentHash: generateContentHash(title, company, description),
-    }
+      sourceJobId: String(raw.id),
+      sourceUrl: url,
+      canonicalUrl: url,
+      companyName: company,
+      title,
+      descriptionRaw: description,
+      locationRaw: location,
+      publishedAt: date,
+      metadata: { tier },
+    })
   },
 }
 
@@ -188,23 +173,22 @@ const freehireAdapter: SourceAdapter = {
     const company = String(raw.company || "Empresa não informada")
     const url = String(raw.url)
     const description = String(raw.description || "")
-    return {
+    const location = String(raw.location || "Remoto")
+    const date = raw.date ? String(raw.date).slice(0, 10) : undefined
+
+    return normalizeJob({
       id: `${source}_${raw.id}`,
-      externalId: String(raw.id),
-      title,
-      company,
-      location: String(raw.location || "Remoto"),
-      url,
-      description,
-      date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
-      tier,
-      status: "discovered",
-      fit: "unrated",
-      score: null,
-      urlHash: generateUrlHash(url),
-      contentHash: generateContentHash(title, company, description),
-    }
+      sourceJobId: String(raw.id),
+      sourceUrl: url,
+      canonicalUrl: url,
+      companyName: company,
+      title,
+      descriptionRaw: description,
+      locationRaw: location,
+      publishedAt: date,
+      metadata: { tier },
+    })
   },
 }
 
@@ -219,23 +203,22 @@ const indeedbrAdapter: SourceAdapter = {
     const company = String(raw.company || "Empresa não informada")
     const url = String(raw.url)
     const description = String(raw.description || "")
-    return {
+    const location = String(raw.location || "Brasil")
+    const date = raw.date ? String(raw.date).slice(0, 10) : undefined
+
+    return normalizeJob({
       id: `${source}_${raw.id}`,
-      externalId: String(raw.id),
-      title,
-      company,
-      location: String(raw.location || "Brasil"),
-      url,
-      description,
-      date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
-      tier,
-      status: "discovered",
-      fit: "unrated",
-      score: null,
-      urlHash: generateUrlHash(url),
-      contentHash: generateContentHash(title, company, description),
-    }
+      sourceJobId: String(raw.id),
+      sourceUrl: url,
+      canonicalUrl: url,
+      companyName: company,
+      title,
+      descriptionRaw: description,
+      locationRaw: location,
+      publishedAt: date,
+      metadata: { tier },
+    })
   },
 }
 
@@ -250,64 +233,30 @@ const jobindexAdapter: SourceAdapter = {
     const company = String(raw.company || "Empresa não informada")
     const url = String(raw.url)
     const description = String(raw.description || "")
-    return {
+    const location = String(raw.location || "Dinamarca")
+    const date = raw.date ? String(raw.date).slice(0, 10) : undefined
+
+    return normalizeJob({
       id: `${source}_${raw.id}`,
-      externalId: String(raw.id),
-      title,
-      company,
-      location: String(raw.location || "Dinamarca"),
-      url,
-      description,
-      date: raw.date ? String(raw.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
-      tier,
-      status: "discovered",
-      fit: "unrated",
-      score: null,
-      urlHash: generateUrlHash(url),
-      contentHash: generateContentHash(title, company, description),
-    }
+      sourceJobId: String(raw.id),
+      sourceUrl: url,
+      canonicalUrl: url,
+      companyName: company,
+      title,
+      descriptionRaw: description,
+      locationRaw: location,
+      publishedAt: date,
+      metadata: { tier },
+    })
   },
 }
 
 const ADAPTERS: SourceAdapter[] = [linkedinAdapter, freehireAdapter, indeedbrAdapter, jobindexAdapter]
 
-import { deduplicate } from "../canonical/deduplication"
-import type { CanonicalJob } from "../types/canonical-job"
-
-function discoveredToCanonical(job: DiscoveredJob): CanonicalJob {
-  return {
-    id: job.id,
-    source: job.source,
-    sourceJobId: job.externalId,
-    sourceUrl: job.url,
-    canonicalUrl: job.url,
-    company: { name: job.company },
-    title: job.title,
-    normalizedTitle: job.title,
-    descriptionRaw: job.description,
-    locations: [{ rawLocation: job.location, isRemote: job.location.toLowerCase().includes("remot") }],
-    requirements: { skills: [] },
-    discoveredAt: new Date().toISOString(),
-    fingerprints: {
-      urlHash: job.urlHash,
-      contentHash: job.contentHash,
-    },
-    provenance: [
-      {
-        source: job.source,
-        sourceJobId: job.externalId,
-        sourceUrl: job.url,
-        discoveredAt: new Date().toISOString(),
-      },
-    ],
-  }
-}
-
 export async function runMultiSourceDiscovery(query: string, location: string) {
   const diagnostics: PortalDiagnostic[] = []
-  const allJobs: DiscoveredJob[] = []
-  const canonicalStore: CanonicalJob[] = []
+  const canonicalJobs: CanonicalJob[] = []
 
   for (const adapter of ADAPTERS) {
     if (!isAdapterEnabled(adapter)) {
@@ -322,14 +271,16 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
       const job = adapter.normalize(raw, adapter.name, adapter.tier)
       if (!job) continue
 
-      const canonicalRep = discoveredToCanonical(job)
-      const duplicate = deduplicate(canonicalRep, canonicalStore)
+      const duplicate = deduplicate(job, canonicalJobs)
       if (duplicate) {
+        const idx = canonicalJobs.findIndex((j) => j.id === duplicate.id)
+        if (idx !== -1) {
+          canonicalJobs[idx] = mergeJobProvenance(canonicalJobs[idx], job)
+        }
         continue
       }
 
-      canonicalStore.push(canonicalRep)
-      allJobs.push(job)
+      canonicalJobs.push(job)
       returned++
     }
 
@@ -354,29 +305,32 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
       VALUES (?, ?, NULL, 'discovered', 'agent', ?)
     `)
 
-    for (const job of allJobs) {
+    for (const job of canonicalJobs) {
+      const locStr = job.locations[0]?.rawLocation || [job.locations[0]?.city, job.locations[0]?.state, job.locations[0]?.country].filter(Boolean).join(", ") || ""
+      const tier = (job.provenance[0]?.metadata as any)?.tier || "tier1_aggregator"
+
       stmtInsertJob.run(
         job.id,
-        job.externalId || null,
+        job.sourceJobId || null,
         job.source,
-        job.url,
-        job.company,
+        job.canonicalUrl || job.sourceUrl,
+        job.company.name,
         job.title,
-        job.location,
-        job.description,
-        job.date,
-        job.contentHash,
-        job.status
+        locStr,
+        job.descriptionRaw,
+        job.publishedAt || null,
+        job.fingerprints.contentHash || null,
+        "discovered"
       )
 
       // Inserir registro inicial de auditoria
       try {
-        stmtHistory.run(`hist_${crypto.randomUUID()}`, job.id, `Vaga descoberta via ${job.source} (Tier: ${job.tier})`)
+        stmtHistory.run(`hist_${crypto.randomUUID()}`, job.id, `Vaga descoberta via ${job.source} (Tier: ${tier})`)
       } catch {}
     }
   } catch (err) {
     console.error("Erro ao persistir vagas descobertas no SQLite:", err)
   }
 
-  return { results: allJobs, sourceDiagnostics: diagnostics }
+  return { results: canonicalJobs, sourceDiagnostics: diagnostics }
 }

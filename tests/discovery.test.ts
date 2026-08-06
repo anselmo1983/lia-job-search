@@ -21,6 +21,27 @@ function runTests() {
   assert.notStrictEqual(hash1, hash3, "Different job titles must produce different hashes")
   console.log("✓ Test 3: Content Hash differentiation passed")
 
+  // Test 4: CanonicalJob normalization and provenance structure
+  const { normalizeJob } = require("../lib/canonical/normalizer")
+  const canonical = normalizeJob({
+    id: "test-101",
+    source: "linkedin",
+    sourceJobId: "101",
+    sourceUrl: "https://linkedin.com/jobs/view/101",
+    companyName: "Acme Corp",
+    title: "Staff Engineer (m/f)",
+    descriptionRaw: "Building high scale services with TypeScript and Go.",
+    locationRaw: "São Paulo, SP, Remoto",
+  })
+
+  assert.strictEqual(canonical.title, "Staff Engineer (m/f)")
+  assert.strictEqual(canonical.normalizedTitle, "Staff Engineer")
+  assert.strictEqual(canonical.company.name, "Acme Corp")
+  assert.strictEqual(canonical.locations[0].isRemote, true)
+  assert.strictEqual(canonical.provenance.length, 1)
+  assert.strictEqual(canonical.provenance[0].source, "linkedin")
+  console.log("✓ Test 4: CanonicalJob normalization and provenance structure passed")
+
   console.log("\nAll Discovery Multi-Source tests passed cleanly!")
 }
 

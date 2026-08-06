@@ -40,8 +40,9 @@ export async function POST(request: Request) {
       const locLower = location.toLowerCase()
       const isBrazilQuery = locLower.includes("brasil") || locLower.includes("brazil") || locLower === "br"
       filteredJobs = results.filter((job) => {
-        if (!job.location) return true
-        const jobLoc = job.location.toLowerCase()
+        const locStr = job.locations[0]?.rawLocation || [job.locations[0]?.city, job.locations[0]?.state].filter(Boolean).join(", ") || ""
+        if (!locStr) return true
+        const jobLoc = locStr.toLowerCase()
         if (jobLoc.includes(locLower)) return true
         if (jobLoc.includes("remote") || jobLoc.includes("remoto") || jobLoc.includes("home office")) return true
         if (isBrazilQuery && (jobLoc.includes("brasil") || jobLoc.includes("brazil") || jobLoc.includes("br") || jobLoc.includes("saul") || jobLoc.includes("paulo") || jobLoc.includes("rio"))) return true
