@@ -79,9 +79,38 @@ jobs:
           echo "OCI_REVISION_MATCH=PASS"
           echo "APP_COMMIT_MATCH=PASS"
 
-      - name: Remote Execution Check
+      - name: Remote Execution via Restricted SSH
+        env:
+          PVE_HOST: ${{ secrets.PVE_HOST }}
+          PVE_PORT: ${{ secrets.PVE_PORT }}
+          PVE_USER: ${{ secrets.PVE_USER }}
+          PVE_SSH_PRIVATE_KEY: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
+          PVE_HOST_KEY: ${{ secrets.PVE_HOST_KEY }}
         run: |
-          echo "REMOTE_EXECUTION_AUTH=NOT_CONFIGURED"
-          echo "Notice: Automatic remote execution from GitHub Actions to PVE CT223 is not configured."
-          echo "To execute promotion on CT223, run the validated command:"
-          echo "bash deploy/pve/scripts/deploy-ct223.sh --commit ${{ inputs.release_commit }} --digest ${{ inputs.release_digest }}"
+          if [[ -z "${PVE_HOST}" || -z "${PVE_SSH_PRIVATE_KEY}" ]]; then
+            echo "REMOTE_EXECUTION_AUTH=NOT_CONFIGURED"
+            echo "Notice: PVE_HOST or PVE_SSH_PRIVATE_KEY secret is not set in GitHub Environment 'production'."
+            echo "To complete manual promotion on CT223, run:"
+            echo "bash deploy/pve/scripts/deploy-ct223.sh --commit ${{ inputs.release_commit }} --digest ${{ inputs.release_digest }}"
+            exit 0
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 0700 ~/.ssh
+          echo "${PVE_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 0600 ~/.ssh/id_ed25519
+
+          if [[ -n "${PVE_HOST_KEY}" ]]; then
+            echo "${PVE_HOST_KEY}" > ~/.ssh/known_hosts
+            chmod 0644 ~/.ssh/known_hosts
+          else
+            echo "::error::PVE_HOST_KEY is required for strict host key verification"
+            exit 1
+          fi
+
+          REMOTE_USER="${PVE_USER:-ljs-deploy}"
+          REMOTE_PORT="${PVE_PORT:-22}"
+
+          echo "Executing restricted remote promotion for ${REMOTE_USER}@${PVE_HOST}:${REMOTE_PORT}..."
+          ssh -i ~/.ssh/id_ed25519 -p "${REMOTE_PORT}" "${REMOTE_USER}@${PVE_HOST}" \
+            "ljs-promote-production --commit ${{ inputs.release_commit }} --digest ${{ inputs.release_digest }}"
