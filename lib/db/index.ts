@@ -24,6 +24,7 @@ export function getDb(): Database.Database {
   ensureDbDir(DB_PATH)
   const db = new Database(DB_PATH)
   db.pragma("journal_mode = WAL")
+  db.pragma("busy_timeout = 5000")
   db.pragma("foreign_keys = ON")
 
   // Bootstrapping do schema unificado

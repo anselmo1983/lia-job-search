@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { requireSession, getServerSession } from "@/lib/auth/server"
 import { getProfileSync, syncCandidateProfile } from "@/lib/db/profile-sync"
 
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   const unauthorized = await requireSession()
   if (unauthorized) return unauthorized
