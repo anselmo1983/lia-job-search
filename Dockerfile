@@ -50,11 +50,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN --mount=type=secret,id=ljs_runtime_env,required=true \
-    set -a \
- && . /run/secrets/ljs_runtime_env \
- && set +a \
- && pnpm build \
+RUN pnpm build \
  && mkdir -p /app/canvas-libs/@napi-rs \
  && find /app/node_modules/.pnpm -maxdepth 1 -name "*canvas*" -exec sh -c 'cp -r -L {}/node_modules/@napi-rs/* /app/canvas-libs/@napi-rs/' \; \
  && mkdir -p /app/sqlite-libs \
