@@ -5,6 +5,7 @@ import path from "node:path"
 import { bifrostChat } from "@/lib/inference/bifrost"
 import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
 import { requireSession } from "@/lib/auth/server"
+import { getDb } from "@/lib/db"
 
 const jobsPath = dataPath("job_scraper", "seen_jobs.json")
 const profilePath = dataPath("profile", "profile.json")
@@ -245,13 +246,35 @@ export async function POST(request: Request) {
     }
 
     try {
-      const existing = JSON.parse(
-        await fs.readFile(jobsPath, "utf8"),
-      )
+      const db = getDb()
+      const updateStmt = db.prepare(`
+        UPDATE jobs
+        SET score = ?, fit = ?, reasoning = ?, strengths = ?, gaps = ?, status = 'ranked', updated_at = datetime('now')
+        WHERE id = ? OR external_id = ? OR source_url = ?
+      `)
 
-      const existingArray = Array.isArray(existing)
-        ? existing
-        : existing.jobs || []
+      for (const ranking of rankings) {
+        updateStmt.run(
+          ranking.score,
+          ranking.verdict,
+          ranking.reasoning,
+          JSON.stringify(ranking.strengths),
+          JSON.stringify(ranking.gaps),
+          ranking.id,
+          ranking.id,
+          ranking.id
+        )
+      }
+    } catch (dbErr) {
+      console.error("Erro ao atualizar rankings no SQLite:", dbErr)
+    }
+
+    try {
+      let existingArray: any[] = []
+      try {
+        const existing = JSON.parse(await fs.readFile(jobsPath, "utf8"))
+        existingArray = Array.isArray(existing) ? existing : existing.jobs || []
+      } catch {}
 
       for (const ranking of rankings) {
         const index = existingArray.findIndex(
@@ -262,23 +285,22 @@ export async function POST(request: Request) {
             (job.url && canonicalJobUrl(job.url) === canonicalJobUrl(ranking.id)),
         )
 
-        if (index < 0) continue
-
-        existingArray[index].score = ranking.score
-        existingArray[index].fit = ranking.verdict
-        existingArray[index].reasoning = ranking.reasoning
-        existingArray[index].strengths = ranking.strengths
-        existingArray[index].gaps = ranking.gaps
-        existingArray[index].status = "ranked"
-        existingArray[index].rank_date =
-          new Date().toISOString()
+        if (index >= 0) {
+          existingArray[index].score = ranking.score
+          existingArray[index].fit = ranking.verdict
+          existingArray[index].reasoning = ranking.reasoning
+          existingArray[index].strengths = ranking.strengths
+          existingArray[index].gaps = ranking.gaps
+          existingArray[index].status = "ranked"
+          existingArray[index].rank_date = new Date().toISOString()
+        }
       }
 
-      await writeAtomic(jobsPath, existingArray)
+      if (existingArray.length > 0) {
+        await writeAtomic(jobsPath, existingArray)
+      }
     } catch (error) {
-      throw new Error(
-        `Falha ao persistir ranking: ${String(error)}`,
-      )
+      console.error("Falha ao persistir JSON legado de ranking:", error)
     }
 
     return NextResponse.json({
