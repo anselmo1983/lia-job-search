@@ -1,0 +1,87 @@
+name: Promote Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: 'Target Git full SHA (40-char hex)'
+        required: true
+        type: string
+      release_digest:
+        description: 'Target OCI image digest (sha256:64_hex)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  promote:
+    name: Validate and Promote Release to Production
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Input Format
+        run: |
+          COMMIT="${{ inputs.release_commit }}"
+          DIGEST="${{ inputs.release_digest }}"
+
+          if [[ ! "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::release_commit must be a valid 40-character hex SHA"
+            exit 1
+          fi
+
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::release_digest must be in sha256:<64_hex> format"
+            exit 1
+          fi
+
+          echo "FULL_SHA_INPUT=PASS"
+          echo "DIGEST_INPUT=PASS"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and Pre-validate Artifact Identity
+        run: |
+          COMMIT="${{ inputs.release_commit }}"
+          DIGEST="${{ inputs.release_digest }}"
+          IMAGE_REF="ghcr.io/anselmo1983/lia-job-search@${DIGEST}"
+
+          echo "Pulling candidate artifact: ${IMAGE_REF}"
+          docker pull "${IMAGE_REF}"
+
+          OCI_REVISION="$(docker image inspect "${IMAGE_REF}" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          APP_COMMIT="$(docker image inspect "${IMAGE_REF}" --format '{{range .Config.Env}}{{println .}}{{end}}' | awk -F= '$1=="APP_COMMIT"{sub(/^APP_COMMIT=/,"");print;exit}')"
+
+          echo "PROMOTION_COMMIT=${COMMIT}"
+          echo "PROMOTION_DIGEST=${DIGEST}"
+          echo "PROMOTION_IMAGE=${IMAGE_REF}"
+          echo "OCI_REVISION=${OCI_REVISION}"
+          echo "APP_COMMIT=${APP_COMMIT}"
+
+          if [[ "${OCI_REVISION}" != "${COMMIT}" ]]; then
+            echo "::error::OCI revision label (${OCI_REVISION}) does not match target commit (${COMMIT})"
+            exit 1
+          fi
+
+          if [[ "${APP_COMMIT}" != "${COMMIT}" ]]; then
+            echo "::error::Image APP_COMMIT env (${APP_COMMIT}) does not match target commit (${COMMIT})"
+            exit 1
+          fi
+
+          echo "ARTIFACT_PREVALIDATION=PASS"
+          echo "OCI_REVISION_MATCH=PASS"
+          echo "APP_COMMIT_MATCH=PASS"
+
+      - name: Remote Execution Check
+        run: |
+          echo "REMOTE_EXECUTION_AUTH=NOT_CONFIGURED"
+          echo "Notice: Automatic remote execution from GitHub Actions to PVE CT223 is not configured."
+          echo "To execute promotion on CT223, run the validated command:"
+          echo "bash deploy/pve/scripts/deploy-ct223.sh --commit ${{ inputs.release_commit }} --digest ${{ inputs.release_digest }}"
