@@ -2,22 +2,25 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { BarChart3, BriefcaseBusiness, CalendarDays, FileText, LayoutDashboard, ListTodo, LogOut, Package, Settings, Sparkles, Users, Workflow } from "lucide-react"
+import {
+  LayoutDashboard,
+  Server,
+  ShieldCheck,
+  FileText,
+  Settings,
+  LogOut,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { authClient } from "@/lib/auth/client"
 
-const navigation = [
-  { href: "/", label: "Visão Geral", icon: LayoutDashboard },
-  { href: "/fill-ups", label: "Fill-Ups (IA)", icon: Sparkles },
-  { href: "/jobs", label: "Vagas & Scraper", icon: BriefcaseBusiness },
-  { href: "/batch", label: "Processamento em Lote", icon: Package },
-  { href: "/applications", label: "Candidaturas", icon: FileText },
-  { href: "/network", label: "Rede de Contatos", icon: Users },
-  { href: "/tasks", label: "Tarefas & Agente", icon: ListTodo },
-  { href: "/resumes", label: "Currículos & Cartas", icon: FileText },
-  { href: "/statistics", label: "Estatísticas & Métricas", icon: BarChart3 },
-  { href: "/calendar", label: "Entrevistas & STAR", icon: CalendarDays },
-  { href: "/workflows", label: "Fluxos de Trabalho", icon: Workflow },
+const canonicalNavigation = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/infra", label: "Infraestrutura", icon: Server },
+  { href: "/security", label: "Segurança", icon: ShieldCheck },
+  { href: "/logs", label: "Logs", icon: FileText },
+]
+
+const bottomNavigation = [
   { href: "/settings", label: "Configurações", icon: Settings },
 ]
 
@@ -32,76 +35,154 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0E1418] text-[#F2F4F3]">
-      <a href="#main-content" className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg bg-emerald-400 px-4 py-2 font-semibold text-slate-950 transition focus:translate-y-0">
+    <div className="min-h-screen bg-[#0E1418] text-white antialiased font-sans">
+      <a
+        href="#main-content"
+        className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg bg-[#41787C] px-4 py-2 font-semibold text-white transition focus:translate-y-0 shadow-lg"
+      >
         Ir para o conteúdo principal
       </a>
-      <aside className="border-b border-[#3D474D]/40 bg-[#0A1014] lg:fixed lg:inset-y-0 lg:w-64 lg:border-b-0 lg:border-r lg:border-[#3D474D]/40">
-        {/* Brand */}
-        <div className="flex h-16 items-center justify-between border-b border-[#3D474D]/40 px-5">
-          <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-400 font-heading font-bold text-[#0E1418] text-lg">Li^</div>
-            <div>
-              <p className="font-heading font-semibold text-[#D0D1CF]">Lia OS</p>
-              <p className="text-xs text-[#A6AEB2]">Busca de Vagas por IA</p>
-            </div>
-          </div>
-          {/* Mobile Logout button */}
-          <div className="flex items-center gap-2 lg:hidden">
-            <button
-              onClick={handleSignOut}
-              title="Sair da sessão"
-              className="flex items-center gap-1.5 rounded-lg border border-[#3D474D]/40 bg-[#1C262C] px-2.5 py-1.5 text-xs text-[#A6AEB2] transition hover:bg-[#24323A] hover:text-[#D0D1CF]"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span>Sair</span>
-            </button>
+
+      {/* 
+        CANONICAL LIA OS SIDEBAR:
+        - Base: Gunmetal #2C3033
+        - Accent/Active: Teal #41787C
+        - Tactile Inset Shadow: inset 1px 1px 0px rgba(255,255,255,0.08)
+        - Depth Shadow: 4px 0px 12px rgba(0,0,0,0.4)
+      */}
+      <aside
+        className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col select-none border-r border-white/5 bg-[#2C3033] text-white transition-all duration-200 ease-out"
+        style={{
+          boxShadow:
+            "inset 1px 1px 0px rgba(255, 255, 255, 0.08), 4px 0px 12px rgba(0, 0, 0, 0.4)",
+        }}
+      >
+        {/* 1. Header da Marca (Topo) - Estritamente apenas o símbolo do escudo, sem texto 'Lia OS' */}
+        <div className="flex h-20 items-center px-6">
+          <div className="group relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-[#41787C] font-heading font-bold text-white shadow-md transition-transform duration-150 ease-out active:scale-95">
+            <span className="text-base tracking-tight select-none">Li^</span>
+            <div className="absolute inset-0 rounded-xl border border-white/20" />
           </div>
         </div>
-        {/* Navigation */}
-        <nav className="flex gap-2 overflow-x-auto p-3 lg:block lg:max-h-[calc(100vh-8rem)] lg:space-y-1 lg:overflow-y-auto">
-          {navigation.map(({ href, label, icon: Icon }) => {
+
+        {/* 2. Menus de Navegação (Espaçamento generoso múltiplos de 8px) */}
+        <nav className="flex flex-1 flex-col gap-2 p-3 overflow-y-auto">
+          {canonicalNavigation.map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? pathname === href : pathname.startsWith(href)
             return (
               <Link
                 key={href}
                 href={href}
                 className={cn(
-                  "flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition font-medium",
+                  "group relative flex items-center gap-3.5 rounded-lg py-3 pl-4 pr-3 text-left text-sm transition-all duration-150 ease-out active:scale-[0.98] active:duration-50",
                   active
-                    ? "bg-emerald-400 text-slate-950 font-semibold shadow-sm"
-                    : "text-[#A6AEB2] hover:bg-[#1C262C] hover:text-[#D0D1CF]"
+                    ? "bg-transparent font-medium text-white"
+                    : "bg-transparent font-normal text-white/85 hover:bg-white/[0.05]"
                 )}
               >
-                <Icon className="h-4 w-4" />
-                {label}
+                {/* Marcador Visual Ativo (Linha vertical Teal 3px na extremidade esquerda) */}
+                {active && (
+                  <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#41787C]" />
+                )}
+
+                {/* Ícone Line Art (Stroke exact 1.5px) */}
+                <Icon
+                  size={20}
+                  strokeWidth={1.5}
+                  className={cn(
+                    "shrink-0 transition-colors duration-150 ease-out",
+                    active
+                      ? "text-[#41787C]"
+                      : "text-white/85 group-hover:text-[#41787C]"
+                  )}
+                />
+
+                {/* Texto do Item */}
+                <span
+                  className={cn(
+                    "truncate transition-colors duration-150 ease-out",
+                    active ? "text-white" : "text-white/85 group-hover:text-white"
+                  )}
+                >
+                  {label}
+                </span>
               </Link>
             )
           })}
-        </nav>
-        {/* Session footer (Desktop) */}
-        <div className="hidden border-t border-[#3D474D]/40 p-3 lg:block">
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-[#1C262C]/40 px-3 py-2 border border-[#3D474D]/20">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-[#D0D1CF]" title={session?.user?.email || "Sessão"}>
-                {isPending ? "…" : (session?.user?.email || "Sessão Ativa")}
-              </p>
-              <p className="text-[10px] text-[#6B7478]">Proprietário Autorizado</p>
+
+          {/* Configurações Afastado dos demais (Fixo na Base da Sidebar) */}
+          <div className="mt-auto pt-2 space-y-2">
+            {bottomNavigation.map(({ href, label, icon: Icon }) => {
+              const active = pathname.startsWith(href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "group relative flex items-center gap-3.5 rounded-lg py-3 pl-4 pr-3 text-left text-sm transition-all duration-150 ease-out active:scale-[0.98] active:duration-50",
+                    active
+                      ? "bg-transparent font-medium text-white"
+                      : "bg-transparent font-normal text-white/85 hover:bg-white/[0.05]"
+                  )}
+                >
+                  {/* Marcador Visual Ativo */}
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#41787C]" />
+                  )}
+
+                  {/* Ícone Line Art (Stroke exact 1.5px) */}
+                  <Icon
+                    size={20}
+                    strokeWidth={1.5}
+                    className={cn(
+                      "shrink-0 transition-colors duration-150 ease-out",
+                      active
+                        ? "text-[#41787C]"
+                        : "text-white/85 group-hover:text-[#41787C]"
+                    )}
+                  />
+
+                  {/* Texto do Item */}
+                  <span
+                    className={cn(
+                      "truncate transition-colors duration-150 ease-out",
+                      active ? "text-white" : "text-white/85 group-hover:text-white"
+                    )}
+                  >
+                    {label}
+                  </span>
+                </Link>
+              )
+            })}
+
+            {/* Rodapé de Sessão / Logout */}
+            <div className="mt-2 border-t border-white/10 pt-3">
+              <div className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-2 border border-white/5">
+                <div className="min-w-0">
+                  <p
+                    className="truncate text-xs font-medium text-white/85"
+                    title={session?.user?.email || "Sessão"}
+                  >
+                    {isPending ? "…" : session?.user?.email || "Operador"}
+                  </p>
+                  <p className="text-[10px] text-white/50">Lia OS Enterprise</p>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  title="Sair da sessão"
+                  className="shrink-0 rounded-md p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+                >
+                  <LogOut size={16} strokeWidth={1.5} className="text-white/50 hover:text-red-400" />
+                </button>
+              </div>
             </div>
-            <button
-              onClick={handleSignOut}
-              title="Sair da sessão"
-              className="shrink-0 rounded-md p-1.5 text-[#A6AEB2] transition hover:bg-[#24323A] hover:text-[#F2F4F3]"
-            >
-              <LogOut className="h-4 w-4 text-red-400/80 hover:text-red-400" />
-            </button>
           </div>
-        </div>
+        </nav>
       </aside>
-      <main id="main-content" tabIndex={-1} className="lg:pl-64">
-        <div className="mx-auto max-w-7xl p-5 sm:p-8">
-          {children}
-        </div>
+
+      {/* Main Content Area offset by Sidebar width */}
+      <main id="main-content" tabIndex={-1} className="pl-64 min-h-screen">
+        <div className="mx-auto max-w-7xl p-6 sm:p-8">{children}</div>
       </main>
     </div>
   )
@@ -110,19 +191,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 export function PageHeader({ title, description }: { title: string; description: string }) {
   return (
     <header className="mb-8">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400 font-heading">Lia Workspace</p>
-      <h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl text-[#D0D1CF]">{title}</h1>
-      <p className="mt-2 max-w-3xl text-[#A6AEB2]">{description}</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#41787C] font-heading">
+        Lia OS Enterprise
+      </p>
+      <h1 className="font-heading text-3xl font-bold tracking-[-0.018em] sm:text-4xl text-white">
+        {title}
+      </h1>
+      <p className="mt-2 max-w-3xl text-white/70">{description}</p>
     </header>
   )
 }
 
 export function EmptyState({ title, description, command }: { title: string; description: string; command: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-[#3D474D] bg-[#1C262C]/50 p-8 text-center">
-      <h2 className="font-heading font-semibold text-[#D0D1CF]">{title}</h2>
-      <p className="mx-auto mt-2 max-w-xl text-sm text-[#A6AEB2]">{description}</p>
-      <code className="mt-4 inline-block rounded-lg bg-[#0E1418] px-4 py-2 text-sm text-emerald-400 font-mono">{command}</code>
+    <div className="rounded-2xl border border-dashed border-white/10 bg-[#1C262C]/50 p-8 text-center">
+      <h2 className="font-heading font-semibold text-white">{title}</h2>
+      <p className="mx-auto mt-2 max-w-xl text-sm text-white/70">{description}</p>
+      <code className="mt-4 inline-block rounded-lg bg-[#0E1418] px-4 py-2 text-sm text-[#41787C] font-mono border border-white/5">
+        {command}
+      </code>
     </div>
   )
 }

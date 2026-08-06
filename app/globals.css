@@ -6,83 +6,112 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Typography Hierarchy Helpers (Lia OS Apple Way) */
+  .title-tracking {
+    letter-spacing: -0.018em;
+  }
+  .category-caps {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
 }
 
 @layer base {
   :root {
-    --font-sans: "Inter", system-ui, sans-serif;
-    --font-heading: "Cabin", system-ui, sans-serif;
+    /* ════════════════════════════════════════════════════════════
+       LAYER 1: PRIMITIVE TOKENS (Raw values)
+       ════════════════════════════════════════════════════════════ */
+    /* Dark Bases (Gunmetal / Obsidian / Graphite) */
+    --color-abyss-950: 200 26% 7%;      /* #0E1418 */
+    --color-obsidian-900: 202 22% 14%;  /* #1C262C */
+    --color-gunmetal-800: 200 12% 20%;  /* #2C3033 */
+    --color-graphite-700: 202 12% 27%;  /* #3D474D */
+    --color-asphalt-600: 205 7% 35%;    /* #52585D */
+    --color-slate-500: 204 5% 49%;      /* #7A8185 */
+
+    /* Accent Palette (Sober Teal & Signal Teal) */
+    --color-teal-600: 186 46% 24%;
+    --color-teal-500: 186 46% 30%;      /* #2A6A71 (Escudo Accent) */
+    --color-teal-400: 185 32% 43%;      /* #4A8A90 (Signal CTA / Ring) */
+    --color-teal-300: 185 32% 55%;
+
+    /* Typography Neutrals (Mist / Cloud / Silver) */
+    --color-silver-300: 200 7% 68%;    /* #A6AEB2 */
+    --color-cloud-200: 90 2% 82%;      /* #D0D1CF */
+    --color-mist-100: 150 8% 95%;      /* #F2F4F3 */
+    --color-white-0: 0 0% 100%;
+
+    /* System Status Primitives */
+    --color-red-600: 0 63% 31%;
+    --color-emerald-600: 160 50% 35%;
+    --color-amber-500: 38 92% 50%;
+    --color-blue-500: 217 91% 60%;
+
+    /* Typography Fonts */
+    --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+    --font-heading: "Inter", system-ui, -apple-system, sans-serif;
     --font-mono: "JetBrains Mono", monospace;
 
-    /* ── Lia OS Brand Palette ── */
-    --abyss: 200 26% 7%;
-    --obsidian: 202 22% 14%;
-    --graphite: 202 12% 27%;
-    --teal: 186 46% 30%;
-    --teal-signal: 185 32% 43%;
-    --silver: 200 7% 68%;
-    --cloud: 90 2% 82%;
-    --mist: 150 8% 95%;
+    /* ════════════════════════════════════════════════════════════
+       LAYER 2: SEMANTIC TOKENS (Purpose Aliases)
+       ════════════════════════════════════════════════════════════ */
+    --background: var(--color-abyss-950);
+    --foreground: var(--color-mist-100);
+    --card: var(--color-obsidian-900);
+    --card-foreground: var(--color-cloud-200);
+    --popover: var(--color-obsidian-900);
+    --popover-foreground: var(--color-cloud-200);
 
-    /* ── Semantic Tokens (Dark by default) ── */
-    --background: var(--abyss);
-    --foreground: var(--mist);
-    --card: var(--obsidian);
-    --card-foreground: var(--cloud);
-    --popover: var(--obsidian);
-    --popover-foreground: var(--cloud);
-
-    --primary: var(--teal);
-    --primary-foreground: var(--mist);
-    --secondary: var(--graphite);
-    --secondary-foreground: var(--silver);
+    --primary: var(--color-teal-500);
+    --primary-foreground: var(--color-mist-100);
+    --secondary: var(--color-graphite-700);
+    --secondary-foreground: var(--color-silver-300);
 
     --muted: 202 22% 12%;
-    --muted-foreground: var(--silver);
-    --accent: var(--teal-signal);
-    --accent-foreground: var(--mist);
+    --muted-foreground: var(--color-silver-300);
+    --accent: var(--color-teal-400);
+    --accent-foreground: var(--color-mist-100);
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: var(--mist);
-    --success: 160 50% 35%;
-    --success-foreground: var(--mist);
-    --warning: 38 92% 50%;
-    --warning-foreground: var(--obsidian);
-    --info: 217 91% 60%;
-    --info-foreground: var(--mist);
+    --destructive: var(--color-red-600);
+    --destructive-foreground: var(--color-mist-100);
+    --success: var(--color-emerald-600);
+    --success-foreground: var(--color-mist-100);
+    --warning: var(--color-amber-500);
+    --warning-foreground: var(--color-obsidian-900);
+    --info: var(--color-blue-500);
+    --info-foreground: var(--color-mist-100);
 
-    --border: var(--graphite);
-    --input: var(--graphite);
-    --ring: var(--teal-signal);
+    --border: var(--color-graphite-700);
+    --input: var(--color-graphite-700);
+    --ring: var(--color-teal-400);
 
     --radius: 0.5rem;
 
-    /* ── Surface hierarchy ── */
-    --surface-raised: var(--obsidian);
+    /* Surface Hierarchy */
+    --surface-raised: var(--color-obsidian-900);
     --surface-overlay: 202 22% 12%;
     --surface-sunken: 200 26% 5%;
 
-    /* ── Border hierarchy ── */
-    --border-subtle: 202 12% 20%;
-    --border-default: var(--graphite);
-    --border-emphasis: var(--teal-signal);
+    /* Border Hierarchy */
+    --border-subtle: var(--color-gunmetal-800);
+    --border-default: var(--color-graphite-700);
+    --border-emphasis: var(--color-teal-400);
 
-    /* ── Sidebar ── */
-    --sidebar-background: 200 26% 5%;
-    --sidebar-foreground: var(--cloud);
-    --sidebar-primary: var(--teal);
-    --sidebar-primary-foreground: var(--mist);
-    --sidebar-accent: 202 22% 12%;
-    --sidebar-accent-foreground: var(--cloud);
-    --sidebar-border: 202 12% 18%;
-    --sidebar-ring: var(--teal-signal);
+    /* ════════════════════════════════════════════════════════════
+       LAYER 3: COMPONENT TOKENS (Specific element styling)
+       ════════════════════════════════════════════════════════════ */
+    --logo-bg: var(--color-obsidian-900);
+    --logo-shield-fill: var(--color-teal-500);
+    --logo-border: var(--color-graphite-700);
 
-    /* ── Charts ── */
-    --chart-1: var(--teal);
-    --chart-2: var(--teal-signal);
-    --chart-3: 186 46% 45%;
-    --chart-4: 185 32% 55%;
-    --chart-5: 200 7% 50%;
+    --btn-primary-bg: var(--color-teal-500);
+    --btn-primary-hover: var(--color-teal-600);
+    --btn-primary-text: var(--color-mist-100);
+
+    --badge-accent-bg: var(--color-teal-500);
+    --badge-accent-text: var(--color-mist-100);
   }
 }
 
@@ -93,11 +122,12 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+    letter-spacing: -0.005em;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.018em;
   }
   code, pre, kbd, samp {
     font-family: var(--font-mono);

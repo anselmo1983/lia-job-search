@@ -11,8 +11,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        heading: ['Cabin', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        heading: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
@@ -82,10 +82,12 @@ const config: Config = {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
-        /* Lia OS Brand Colors (direct access) */
+        /* Lia OS Brand Tokens (direct access) */
         abyss: '#0E1418',
         obsidian: '#1C262C',
         graphite: '#3D474D',
+        asphalt: '#52585D',
+        slate: '#7A8185',
         teal: '#2A6A71',
         'teal-signal': '#4A8A90',
         silver: '#A6AEB2',
