@@ -71,6 +71,7 @@ ENV LIA_DATA_DIR=/app/data
 # Identidade de release (informativa — exposta via /api/health; nunca secreta)
 ARG APP_COMMIT
 ENV APP_COMMIT=$APP_COMMIT
+LABEL org.opencontainers.image.revision=$APP_COMMIT
 
 WORKDIR /app
 
