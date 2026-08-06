@@ -11,6 +11,7 @@ import { fetchWithAuth } from "@/lib/auth/client-guard"
 
 type Job = JobPreviewData & {
   key?: string
+  work_mode?: string
 }
 
 const PRESET_QUERIES = [
@@ -56,6 +57,8 @@ export default function JobsPage() {
 
   const [searchResults, setSearchResults] = useState<Job[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [workModeFilter, setWorkModeFilter] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<"score" | "date">("score")
   const [profile, setProfile] = useState<any>(null)
 
   useEffect(() => {
@@ -156,6 +159,18 @@ export default function JobsPage() {
     if (statusFilter === "unranked" && job.score !== null && job.score !== undefined) return false
     if (statusFilter === "strong" && (job.score ?? 0) < 70) return false
 
+    if (workModeFilter !== "all") {
+      const mode = (job.work_mode || "").toLowerCase()
+      const loc = (job.location || "").toLowerCase()
+      if (workModeFilter === "remoto") {
+        if (!mode.includes("remot") && !loc.includes("remot") && !loc.includes("home office")) return false
+      } else if (workModeFilter === "hibrido") {
+        if (!mode.includes("híbr") && !mode.includes("hibr") && !loc.includes("híbr") && !loc.includes("hibr")) return false
+      } else if (workModeFilter === "presencial") {
+        if (mode.includes("remot") || mode.includes("híbr") || mode.includes("hibr") || loc.includes("remot") || loc.includes("home office")) return false
+      }
+    }
+
     if (!searchLocation.trim()) return true
     if (!job.location) return true
     const loc = job.location.toLowerCase()
@@ -175,7 +190,14 @@ export default function JobsPage() {
     return loc.includes(target) || loc.includes("remote") || loc.includes("remoto")
   })
 
-  const sorted = [...filteredDisplay].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
+  const sorted = [...filteredDisplay].sort((a, b) => {
+    if (sortBy === "date") {
+      const dateA = new Date(a.date || 0).getTime()
+      const dateB = new Date(b.date || 0).getTime()
+      return dateB - dateA
+    }
+    return (b.score ?? -1) - (a.score ?? -1)
+  })
   const unrankedCount = jobs.filter((j) => j.score === null || j.score === undefined).length
 
   return (
@@ -238,25 +260,68 @@ export default function JobsPage() {
             <div className="h-4 w-px bg-slate-800" />
 
             <Filter className="h-3.5 w-3.5 text-slate-400" />
-            <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-800 text-xs">
-              <button
-                onClick={() => setStatusFilter("all")}
-                className={`px-2.5 py-1 rounded-md transition ${statusFilter === "all" ? "bg-slate-800 text-white font-medium" : "text-slate-400"}`}
-              >
-                Todas ({jobs.length})
-              </button>
-              <button
-                onClick={() => setStatusFilter("strong")}
-                className={`px-2.5 py-1 rounded-md transition ${statusFilter === "strong" ? "bg-emerald-400/20 text-emerald-300 font-medium" : "text-slate-400"}`}
-              >
-                Alta Compatibilidade (70+)
-              </button>
-              <button
-                onClick={() => setStatusFilter("unranked")}
-                className={`px-2.5 py-1 rounded-md transition ${statusFilter === "unranked" ? "bg-slate-800 text-white font-medium" : "text-slate-400"}`}
-              >
-                Sem Score ({unrankedCount})
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-800 text-xs">
+                <button
+                  onClick={() => setStatusFilter("all")}
+                  className={`px-2.5 py-1 rounded-md transition ${statusFilter === "all" ? "bg-slate-800 text-white font-medium" : "text-slate-400"}`}
+                >
+                  Todas ({jobs.length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter("strong")}
+                  className={`px-2.5 py-1 rounded-md transition ${statusFilter === "strong" ? "bg-emerald-400/20 text-emerald-300 font-medium" : "text-slate-400"}`}
+                >
+                  Alta Compatibilidade (70+)
+                </button>
+                <button
+                  onClick={() => setStatusFilter("unranked")}
+                  className={`px-2.5 py-1 rounded-md transition ${statusFilter === "unranked" ? "bg-slate-800 text-white font-medium" : "text-slate-400"}`}
+                >
+                  Sem Score ({unrankedCount})
+                </button>
+              </div>
+
+              {/* Filtro por Modalidade (work_mode) */}
+              <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-800 text-xs">
+                <button
+                  onClick={() => setWorkModeFilter("all")}
+                  className={`px-2.5 py-1 rounded-md transition ${workModeFilter === "all" ? "bg-slate-800 text-white font-medium" : "text-slate-400"}`}
+                >
+                  Qualquer Formato
+                </button>
+                <button
+                  onClick={() => setWorkModeFilter("remoto")}
+                  className={`px-2.5 py-1 rounded-md transition ${workModeFilter === "remoto" ? "bg-emerald-400/20 text-emerald-300 font-medium" : "text-slate-400"}`}
+                >
+                  Remoto
+                </button>
+                <button
+                  onClick={() => setWorkModeFilter("hibrido")}
+                  className={`px-2.5 py-1 rounded-md transition ${workModeFilter === "hibrido" ? "bg-sky-400/20 text-sky-300 font-medium" : "text-slate-400"}`}
+                >
+                  Híbrido
+                </button>
+                <button
+                  onClick={() => setWorkModeFilter("presencial")}
+                  className={`px-2.5 py-1 rounded-md transition ${workModeFilter === "presencial" ? "bg-slate-800 text-white font-medium" : "text-slate-400"}`}
+                >
+                  Presencial
+                </button>
+              </div>
+
+              {/* Ordenação */}
+              <div className="flex items-center gap-1 text-xs text-slate-400">
+                <span className="ml-1 text-[11px] text-slate-500">Ordem:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as "score" | "date")}
+                  className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-emerald-400"
+                >
+                  <option value="score">Maior Score</option>
+                  <option value="date">Mais Recentes</option>
+                </select>
+              </div>
             </div>
           </div>
 
