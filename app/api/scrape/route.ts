@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { readFileSync, existsSync } from "fs"
 import { dataPath } from "@/lib/runtime/data-directory"
-import { requireSession } from "@/lib/auth/server"
+import { requireSession, getServerSession } from "@/lib/auth/server"
+import { getDb } from "@/lib/db"
 import { runMultiSourceDiscovery } from "@/lib/services/discovery-service"
 
 export async function POST(request: Request) {
@@ -19,13 +20,28 @@ export async function POST(request: Request) {
 
     if (!query) {
       try {
-        const jsonProfilePath = dataPath("profile", "profile.json")
-        if (existsSync(jsonProfilePath)) {
-          const parsed = JSON.parse(readFileSync(jsonProfilePath, "utf-8"))
-          query = parsed.role || (Array.isArray(parsed.skills?.primary) ? parsed.skills.primary.join(" ") : parsed.skills?.primary) || parsed.title || ""
-          if (!location && parsed.location) location = String(parsed.location)
+        const session = await getServerSession()
+        if (session?.user?.id) {
+          const db = getDb()
+          const profileRow = db.prepare("SELECT * FROM profile WHERE user_id = ?").get(session.user.id) as any
+          if (profileRow?.structured_json) {
+            const parsed = JSON.parse(profileRow.structured_json)
+            query = parsed.identity?.headline || parsed.targetPreferences?.targetRoles?.[0] || (Array.isArray(parsed.skills?.primary) ? parsed.skills.primary.join(" ") : parsed.skills?.primary) || ""
+            if (!location && parsed.identity?.location) location = String(parsed.identity.location)
+          }
         }
       } catch {}
+
+      if (!query) {
+        try {
+          const jsonProfilePath = dataPath("profile", "profile.json")
+          if (existsSync(jsonProfilePath)) {
+            const parsed = JSON.parse(readFileSync(jsonProfilePath, "utf-8"))
+            query = parsed.role || (Array.isArray(parsed.skills?.primary) ? parsed.skills.primary.join(" ") : parsed.skills?.primary) || parsed.title || ""
+            if (!location && parsed.location) location = String(parsed.location)
+          }
+        } catch {}
+      }
     }
 
     if (!query) {

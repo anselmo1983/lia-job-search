@@ -4,7 +4,7 @@ import path from "node:path"
 
 import { bifrostChat } from "@/lib/inference/bifrost"
 import { dataPath, writeAtomic } from "@/lib/runtime/data-directory"
-import { requireSession } from "@/lib/auth/server"
+import { requireSession, getServerSession } from "@/lib/auth/server"
 import { getDb } from "@/lib/db"
 
 const jobsPath = dataPath("job_scraper", "seen_jobs.json")
@@ -102,7 +102,20 @@ function canonicalJobUrl(input: string): string {
   }
 }
 
-async function loadPersistedProfile(): Promise<string> {
+async function loadPersistedProfile(userId?: string): Promise<string> {
+  if (userId) {
+    try {
+      const db = getDb()
+      const profileRow = db.prepare("SELECT * FROM profile WHERE user_id = ?").get(userId) as any
+      if (profileRow?.structured_json) {
+        return profileRow.structured_json
+      }
+      if (profileRow?.summary) {
+        return profileRow.summary
+      }
+    } catch {}
+  }
+
   try {
     const profile = JSON.parse(
       await fs.readFile(profilePath, "utf8"),
@@ -154,7 +167,8 @@ export async function POST(request: Request) {
     }
 
     if (!profile) {
-      profile = await loadPersistedProfile()
+      const session = await getServerSession()
+      profile = await loadPersistedProfile(session?.user?.id)
     }
 
     if (!profile) {
