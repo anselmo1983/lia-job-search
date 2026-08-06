@@ -1,5 +1,6 @@
 import { CandidateProfile } from "@/lib/db/profile-schema"
 import { extractJobKeywords } from "@/lib/services/tailoring-engine"
+import { completeJson, getDefaultModel, bifrostConfigured } from "@/lib/inference/bifrost"
 
 export interface GapSkillItem {
   skill: string
@@ -128,4 +129,49 @@ export function analyzeCandidateSkillGaps(
     gapSkills,
     roadmap,
   }
+}
+
+export async function analyzeCandidateSkillGapsWithAI(
+  profile: CandidateProfile,
+  jobs: Array<{ title: string; company: string; description?: string }>
+): Promise<UpskillReport> {
+  const baseReport = analyzeCandidateSkillGaps(profile, jobs)
+  if (!bifrostConfigured() || baseReport.gapSkills.length === 0) {
+    return baseReport
+  }
+
+  try {
+    const topGaps = baseReport.gapSkills.slice(0, 4).map((g) => g.skill)
+    const result = await completeJson({
+      model: getDefaultModel(),
+      system:
+        "Você é o consultor de Upskilling Técnico da Lia. " +
+        "Gere recomendações práticas e projetos de portfólio para os gaps de competência do candidato. " +
+        "Retorne JSON no formato {roadmap:[{skill:string, title:string, description:string, actionItems:[string], suggestedProject:string, estimatedHours:number}]}",
+      messages: [
+        {
+          role: "user",
+          content: `Perfil do candidato: ${profile.identity.headline}\nSkills: ${JSON.stringify(profile.skills)}\n\nGaps prioritários identificados nas vagas: ${JSON.stringify(topGaps)}`,
+        },
+      ],
+      maxTokens: 2000,
+    })
+
+    const parsedResult = result as any
+    if (Array.isArray(parsedResult?.roadmap) && parsedResult.roadmap.length > 0) {
+      baseReport.roadmap = parsedResult.roadmap.map((item: any, idx: number) => ({
+        id: `ai-roadmap-${idx}-${(item.skill || "skill").toLowerCase()}`,
+        skill: item.skill || topGaps[idx] || "Competência",
+        title: item.title || `Mastery em ${item.skill}`,
+        description: item.description || `Plano de ação focado em suprir a demanda do mercado.`,
+        actionItems: Array.isArray(item.actionItems) ? item.actionItems : [`Aprender ${item.skill}`],
+        suggestedProject: item.suggestedProject || `Projeto prático aplicando ${item.skill}`,
+        estimatedHours: Number(item.estimatedHours) || 20,
+      }))
+    }
+  } catch (err) {
+    console.error("Erro na inteligência Bifrost de Upskilling (utilizando roadmap base):", err)
+  }
+
+  return baseReport
 }

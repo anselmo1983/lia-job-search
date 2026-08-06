@@ -105,15 +105,13 @@ export default function JobsPage() {
         body: JSON.stringify({ query: q, location: profile?.location || searchLocation }),
       })
       const data = await res.json()
-      if (data.results) {
+      if (data.results && data.results.length > 0) {
         setSearchResults(data.results)
-        for (const job of data.results) {
-          await fetchWithAuth("/api/jobs", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "add", ...job }),
-          })
-        }
+        await fetchWithAuth("/api/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "bulk_add", jobs: data.results }),
+        })
         await rankJobs()
         await loadJobs()
       }
@@ -154,11 +152,19 @@ export default function JobsPage() {
 
   const allJobs = [...jobs]
   const displayJobs = searchResults.length > 0 ? searchResults : allJobs
-  const filteredDisplay = displayJobs.filter((job) => {
-    if (statusFilter === "ranked" && (job.score === null || job.score === undefined)) return false
-    if (statusFilter === "unranked" && job.score !== null && job.score !== undefined) return false
-    if (statusFilter === "strong" && (job.score ?? 0) < 70) return false
 
+  // Base filter (by search query, location, and work mode)
+  const baseFiltered = displayJobs.filter((job) => {
+    // 1. Text Search Filter (instant matching)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      const titleMatch = (job.title || "").toLowerCase().includes(q)
+      const companyMatch = (job.company || "").toLowerCase().includes(q)
+      const descMatch = (job.description || "").toLowerCase().includes(q)
+      if (!titleMatch && !companyMatch && !descMatch) return false
+    }
+
+    // 2. Work mode filter
     if (workModeFilter !== "all") {
       const mode = (job.work_mode || "").toLowerCase()
       const loc = (job.location || "").toLowerCase()
@@ -171,23 +177,28 @@ export default function JobsPage() {
       }
     }
 
+    // 3. Location filter (permissive for Brazil / Remote / empty)
     if (!searchLocation.trim()) return true
     if (!job.location) return true
     const loc = job.location.toLowerCase()
     const target = searchLocation.toLowerCase()
-    if (target.includes("brasil") || target.includes("brazil")) {
-      return (
-        loc.includes("brasil") ||
-        loc.includes("brazil") ||
-        loc.includes("br") ||
-        loc.includes("remote") ||
-        loc.includes("remoto") ||
-        loc.includes("home office") ||
-        loc.includes("paulo") ||
-        loc.includes("rio")
-      )
+    if (target.includes("brasil") || target.includes("brazil") || target === "br") {
+      return true
     }
-    return loc.includes(target) || loc.includes("remote") || loc.includes("remoto")
+    return loc.includes(target) || loc.includes("remote") || loc.includes("remoto") || loc.includes("home office")
+  })
+
+  // Dynamic status counts based on baseFiltered jobs
+  const totalBaseCount = baseFiltered.length
+  const strongCount = baseFiltered.filter((j) => (j.score ?? 0) >= 70).length
+  const unrankedCount = baseFiltered.filter((j) => j.score === null || j.score === undefined).length
+
+  // Apply final status filter
+  const filteredDisplay = baseFiltered.filter((job) => {
+    if (statusFilter === "ranked" && (job.score === null || job.score === undefined)) return false
+    if (statusFilter === "unranked" && (job.score !== null && job.score !== undefined)) return false
+    if (statusFilter === "strong" && (job.score ?? 0) < 70) return false
+    return true
   })
 
   const sorted = [...filteredDisplay].sort((a, b) => {
@@ -198,7 +209,6 @@ export default function JobsPage() {
     }
     return (b.score ?? -1) - (a.score ?? -1)
   })
-  const unrankedCount = jobs.filter((j) => j.score === null || j.score === undefined).length
 
   return (
     <>
@@ -233,13 +243,28 @@ export default function JobsPage() {
           {PRESET_QUERIES.map((preset) => (
             <button
               key={preset}
-              onClick={() => scrapeJobs(preset)}
+              onClick={() => {
+                setSearchQuery(preset)
+                scrapeJobs(preset)
+              }}
               disabled={scraping}
-              className="rounded-full bg-slate-950 border border-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:border-emerald-400/50 hover:text-emerald-300 transition"
+              className={`rounded-full bg-slate-950 border px-2.5 py-1 text-xs transition ${
+                searchQuery.toLowerCase() === preset.toLowerCase()
+                  ? "border-emerald-400 text-emerald-300 font-medium bg-emerald-950/30"
+                  : "border-slate-800 text-slate-300 hover:border-emerald-400/50 hover:text-emerald-300"
+              }`}
             >
               + {preset}
             </button>
           ))}
+          {searchQuery.trim() && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="text-xs text-slate-500 hover:text-slate-300 underline ml-1"
+            >
+              Limpar busca
+            </button>
+          )}
         </div>
 
         {/* Action bar & Filters */}
@@ -266,13 +291,13 @@ export default function JobsPage() {
                   onClick={() => setStatusFilter("all")}
                   className={`px-2.5 py-1 rounded-md transition ${statusFilter === "all" ? "bg-slate-800 text-white font-medium" : "text-slate-400"}`}
                 >
-                  Todas ({jobs.length})
+                  Todas ({totalBaseCount})
                 </button>
                 <button
                   onClick={() => setStatusFilter("strong")}
                   className={`px-2.5 py-1 rounded-md transition ${statusFilter === "strong" ? "bg-emerald-400/20 text-emerald-300 font-medium" : "text-slate-400"}`}
                 >
-                  Alta Compatibilidade (70+)
+                  Alta Compatibilidade (70+) ({strongCount})
                 </button>
                 <button
                   onClick={() => setStatusFilter("unranked")}
@@ -339,8 +364,24 @@ export default function JobsPage() {
       ) : sorted.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/50 p-12 text-center">
           <Search className="mx-auto mb-4 h-10 w-10 text-slate-600" />
-          <h2 className="font-semibold text-white">Nenhuma vaga encontrada</h2>
-          <p className="mt-2 text-sm text-slate-400">Use a busca ou os atalhos acima para pesquisar em múltiplos portais.</p>
+          <h2 className="font-semibold text-white">
+            {statusFilter === "strong" && strongCount === 0
+              ? "Nenhuma vaga classificada com Alta Compatibilidade (70+)"
+              : searchQuery.trim()
+              ? `Nenhuma vaga encontrada para "${searchQuery}"`
+              : "Nenhuma vaga encontrada"}
+          </h2>
+          <p className="mt-2 text-sm text-slate-400">
+            {statusFilter === "strong" && unrankedCount > 0
+              ? `Você possui ${unrankedCount} vagas pendentes de classificação. Clique em "Classificar por Fit" para calcular os scores de compatibilidade.`
+              : "Use a busca ou os atalhos de busca rápida acima para pesquisar vagas nos portais."}
+          </p>
+          {statusFilter === "strong" && unrankedCount > 0 && (
+            <Button size="sm" className="mt-4 gap-2 bg-amber-400 text-slate-950 hover:bg-amber-300" onClick={rankJobs} disabled={ranking}>
+              {ranking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+              <span>Classificar Vagas Pendentes</span>
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-3 pb-20">

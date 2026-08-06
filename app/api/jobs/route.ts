@@ -122,6 +122,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, duplicate: false, id })
     }
 
+    if (body.action === "bulk_add" && Array.isArray(body.jobs)) {
+      const insertStmt = db.prepare(`
+        INSERT INTO jobs (id, external_id, source, source_url, company, title, location, work_mode, description, salary_text, published_at, content_hash, status, fit, score, strengths, gaps, reasoning)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      const checkStmt = db.prepare("SELECT id FROM jobs WHERE source_url = ? OR content_hash = ?")
+
+      const insertedIds: string[] = []
+      let duplicateCount = 0
+
+      const transaction = db.transaction((jobList: any[]) => {
+        for (const job of jobList) {
+          const incomingUrl = typeof job.url === "string" ? canonicalJobUrl(job.url) : ""
+          const company = job.company || "Desconhecida"
+          const title = job.title || "Vaga Sem Título"
+          const contentHash = crypto.createHash("sha256").update(`${company}:${title}:${incomingUrl}`).digest("hex")
+
+          if (incomingUrl) {
+            const duplicate = checkStmt.get(incomingUrl, contentHash)
+            if (duplicate) {
+              duplicateCount++
+              continue
+            }
+          }
+
+          const id = job.id || crypto.randomUUID()
+          insertStmt.run(
+            id,
+            job.external_id || null,
+            job.source || "manual",
+            incomingUrl || job.url || "",
+            company,
+            title,
+            job.location || null,
+            job.work_mode || null,
+            job.description || null,
+            job.salary || job.salary_text || null,
+            job.date || new Date().toISOString(),
+            contentHash,
+            "discovered",
+            "unrated",
+            null,
+            null,
+            null,
+            null
+          )
+          insertedIds.push(id)
+        }
+      })
+
+      transaction(body.jobs)
+      return NextResponse.json({ success: true, insertedCount: insertedIds.length, duplicateCount, ids: insertedIds })
+    }
+
     if (body.action === "update") {
       const { id, updates } = body
       if (!id || !updates) return NextResponse.json({ error: "ID e updates são obrigatórios" }, { status: 400 })

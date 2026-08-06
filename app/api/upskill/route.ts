@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getDb } from "@/lib/db"
 import { getProfileSync } from "@/lib/db/profile-sync"
-import { analyzeCandidateSkillGaps } from "@/lib/services/upskill-service"
+import { analyzeCandidateSkillGapsWithAI } from "@/lib/services/upskill-service"
 
 export async function GET() {
   try {
@@ -18,7 +18,7 @@ export async function GET() {
       .prepare("SELECT title, company, description FROM jobs")
       .all() as Array<{ title: string; company: string; description: string }>
 
-    const upskillReport = analyzeCandidateSkillGaps(profile, jobs)
+    const upskillReport = await analyzeCandidateSkillGapsWithAI(profile, jobs)
 
     return NextResponse.json({
       success: true,
