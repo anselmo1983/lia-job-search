@@ -43,6 +43,16 @@ if [[ -z "${RELEASE_COMMIT}" || -z "${RELEASE_DIGEST}" ]]; then
   exit 1
 fi
 
+if [[ ! "${RELEASE_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "FATAL: --commit must be a 40-character hexadecimal SHA string." >&2
+  exit 1
+fi
+
+if [[ ! "${RELEASE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "FATAL: --digest must be in sha256:<64_hex> format." >&2
+  exit 1
+fi
+
 # --- preconditions ---------------------------------------------------------
 if [[ $EUID -ne 0 ]]; then
   echo "FATAL: run as root (installs into ${APP_DIR} and manages container runtime)." >&2
@@ -168,6 +178,12 @@ services:
 YAML
 fi
 
+PREVIOUS_IMAGE="$(docker inspect --format '{{.Config.Image}}' "${CONTAINER}" 2>/dev/null || echo "none")"
+
+if [[ -f "${APP_DIR}/release.env" ]]; then
+  cp "${APP_DIR}/release.env" "${APP_DIR}/release.env.bak"
+fi
+
 RELEASE_TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 cat <<ENV > "${APP_DIR}/release.env"
 LJS_IMAGE=${IMAGE_REF}
@@ -176,8 +192,6 @@ RELEASE_DIGEST=${RELEASE_DIGEST}
 RELEASE_ID=${RELEASE_COMMIT}
 RELEASE_TIMESTAMP=${RELEASE_TIMESTAMP}
 ENV
-
-PREVIOUS_IMAGE="$(docker inspect --format '{{.Config.Image}}' "${CONTAINER}" 2>/dev/null || echo "none")"
 
 echo "--- 5. Production Swap ---"
 docker compose --env-file "${APP_DIR}/release.env" -f "${APP_DIR}/compose.production.yml" up -d --remove-orphans
@@ -195,12 +209,16 @@ done
 
 if [[ "${LOCAL_HEALTH_COMMIT}" != "${RELEASE_COMMIT}" ]]; then
   echo "FATAL: Production health check failed (got '${LOCAL_HEALTH_COMMIT}', expected '${RELEASE_COMMIT}'). Triggering rollback..." >&2
+  if [[ -f "${APP_DIR}/release.env.bak" ]]; then
+    mv "${APP_DIR}/release.env.bak" "${APP_DIR}/release.env"
+  fi
   if [[ "${PREVIOUS_IMAGE}" != "none" ]]; then
-    docker compose --env-file "${APP_DIR}/release.env" -f "${APP_DIR}/compose.production.yml" down 2>/dev/null || true
+    docker compose --env-file "${APP_DIR}/release.env" -f "${APP_DIR}/compose.production.yml" up -d --remove-orphans 2>/dev/null || true
   fi
   exit 1
 fi
 
+rm -f "${APP_DIR}/release.env.bak"
 RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' "${CONTAINER}")"
 
 echo "--- 7. Updating canonical deployment state ---"
