@@ -8,7 +8,8 @@
 # Usage:
 #   bash deploy/pve/scripts/deploy-ct223.sh \
 #     --commit <FULL_SHA> \
-#     --digest sha256:<64_HEX>
+#     --digest sha256:<64_HEX> \
+#     [--run-id <RUN_ID>] [--actor <ACTOR>]
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -20,6 +21,8 @@ CANDIDATE_PORT="3100"
 
 RELEASE_COMMIT="${RELEASE_COMMIT:-}"
 RELEASE_DIGEST="${RELEASE_DIGEST:-}"
+PROMOTION_RUN_ID="${PROMOTION_RUN_ID:-manual}"
+PROMOTION_ACTOR="${PROMOTION_ACTOR:-system}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -29,6 +32,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --digest)
       RELEASE_DIGEST="$2"
+      shift 2
+      ;;
+    --run-id)
+      PROMOTION_RUN_ID="$2"
+      shift 2
+      ;;
+    --actor)
+      PROMOTION_ACTOR="$2"
       shift 2
       ;;
     *)
@@ -178,6 +189,8 @@ services:
 YAML
 fi
 
+PREVIOUS_COMMIT="$(grep '^commit=' "${APP_DIR}/DEPLOYED" 2>/dev/null | cut -d= -f2 || echo "none")"
+PREVIOUS_DIGEST="$(grep '^digest=' "${APP_DIR}/DEPLOYED" 2>/dev/null | cut -d= -f2 || echo "none")"
 PREVIOUS_IMAGE="$(docker inspect --format '{{.Config.Image}}' "${CONTAINER}" 2>/dev/null || echo "none")"
 
 if [[ -f "${APP_DIR}/release.env" ]]; then
@@ -230,6 +243,8 @@ image=${IMAGE_REF}
 digest=${RELEASE_DIGEST}
 image_id=${RUNNING_IMAGE_ID}
 deployed_at=${RELEASE_TIMESTAMP}
+promotion_run_id=${PROMOTION_RUN_ID}
+promotion_actor=${PROMOTION_ACTOR}
 STATE
 
 cat <<JSON > "${APP_DIR}/state/current.json"
@@ -244,9 +259,30 @@ cat <<JSON > "${APP_DIR}/state/current.json"
   "runtime_app_commit": "${APP_COMMIT}",
   "local_health_commit": "${LOCAL_HEALTH_COMMIT}",
   "public_health_commit": "${LOCAL_HEALTH_COMMIT}",
+  "previous_commit": "${PREVIOUS_COMMIT}",
+  "previous_digest": "${PREVIOUS_DIGEST}",
+  "promotion_run_id": "${PROMOTION_RUN_ID}",
+  "promotion_actor": "${PROMOTION_ACTOR}",
   "rollback_container": "${PREVIOUS_IMAGE}"
 }
 JSON
+
+echo "--- 8. Operational Audit Summary ---"
+echo "release_commit=${RELEASE_COMMIT}"
+echo "release_digest=${RELEASE_DIGEST}"
+echo "image=${IMAGE_REF}"
+echo "image_id=${RUNNING_IMAGE_ID}"
+echo "oci_revision=${OCI_REVISION}"
+echo "image_app_commit=${APP_COMMIT}"
+echo "runtime_app_commit=${APP_COMMIT}"
+echo "local_health_commit=${LOCAL_HEALTH_COMMIT}"
+echo "public_health_commit=${LOCAL_HEALTH_COMMIT}"
+echo "previous_commit=${PREVIOUS_COMMIT}"
+echo "previous_digest=${PREVIOUS_DIGEST}"
+echo "rollback_container=${PREVIOUS_IMAGE}"
+echo "promotion_run_id=${PROMOTION_RUN_ID}"
+echo "promotion_actor=${PROMOTION_ACTOR}"
+echo "gate=PHASE_4_IMMUTABLE_GHCR_DEPLOY_PASS"
 
 echo "OK. Deployment successful."
 echo "Commit: ${RELEASE_COMMIT}"

@@ -8,11 +8,14 @@
 # Accepts ONLY:
 #   --commit <40 hex SHA>
 #   --digest sha256:<64 hex>
+#   [--run-id <RUN_ID>] [--actor <ACTOR>]
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 RELEASE_COMMIT=""
 RELEASE_DIGEST=""
+PROMOTION_RUN_ID="manual"
+PROMOTION_ACTOR="system"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -22,6 +25,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --digest)
       RELEASE_DIGEST="$2"
+      shift 2
+      ;;
+    --run-id)
+      PROMOTION_RUN_ID="$2"
+      shift 2
+      ;;
+    --actor)
+      PROMOTION_ACTOR="$2"
       shift 2
       ;;
     *)
@@ -56,4 +67,4 @@ else
   exit 1
 fi
 
-exec bash "${DEPLOY_SCRIPT}" --commit "${RELEASE_COMMIT}" --digest "${RELEASE_DIGEST}"
+exec bash "${DEPLOY_SCRIPT}" --commit "${RELEASE_COMMIT}" --digest "${RELEASE_DIGEST}" --run-id "${PROMOTION_RUN_ID}" --actor "${PROMOTION_ACTOR}"

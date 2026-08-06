@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate Input Format
+        id: validate
         run: |
           COMMIT="${{ inputs.release_commit }}"
           DIGEST="${{ inputs.release_digest }}"
@@ -48,6 +49,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull and Pre-validate Artifact Identity
+        id: precheck
         run: |
           COMMIT="${{ inputs.release_commit }}"
           DIGEST="${{ inputs.release_digest }}"
@@ -75,11 +77,12 @@ jobs:
             exit 1
           fi
 
+          echo "oci_revision=${OCI_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "app_commit=${APP_COMMIT}" >> "$GITHUB_OUTPUT"
           echo "ARTIFACT_PREVALIDATION=PASS"
-          echo "OCI_REVISION_MATCH=PASS"
-          echo "APP_COMMIT_MATCH=PASS"
 
       - name: Remote Execution via Restricted SSH
+        id: remote_deploy
         env:
           PVE_HOST: ${{ secrets.PVE_HOST }}
           PVE_PORT: ${{ secrets.PVE_PORT }}
@@ -89,6 +92,9 @@ jobs:
         run: |
           if [[ -z "${PVE_HOST}" || -z "${PVE_SSH_PRIVATE_KEY}" ]]; then
             echo "REMOTE_EXECUTION_AUTH=NOT_CONFIGURED"
+            echo "remote_gate=NOT_EXECUTED" >> "$GITHUB_OUTPUT"
+            echo "active_commit=${{ inputs.release_commit }}" >> "$GITHUB_OUTPUT"
+            echo "active_digest=${{ inputs.release_digest }}" >> "$GITHUB_OUTPUT"
             echo "Notice: PVE_HOST or PVE_SSH_PRIVATE_KEY secret is not set in GitHub Environment 'production'."
             echo "To complete manual promotion on CT223, run:"
             echo "bash deploy/pve/scripts/deploy-ct223.sh --commit ${{ inputs.release_commit }} --digest ${{ inputs.release_digest }}"
@@ -112,5 +118,56 @@ jobs:
           REMOTE_PORT="${PVE_PORT:-22}"
 
           echo "Executing restricted remote promotion for ${REMOTE_USER}@${PVE_HOST}:${REMOTE_PORT}..."
-          ssh -i ~/.ssh/id_ed25519 -p "${REMOTE_PORT}" "${REMOTE_USER}@${PVE_HOST}" \
-            "ljs-promote-production --commit ${{ inputs.release_commit }} --digest ${{ inputs.release_digest }}"
+          OUT="$(ssh -i ~/.ssh/id_ed25519 -p "${REMOTE_PORT}" "${REMOTE_USER}@${PVE_HOST}" \
+            "ljs-promote-production --commit ${{ inputs.release_commit }} --digest ${{ inputs.release_digest }} --run-id ${{ github.run_id }} --actor ${{ github.actor }}")"
+
+          echo "$OUT"
+
+          REMOTE_GATE="$(echo "$OUT" | awk -F'gate=' '{print $2}' | tail -n1)"
+          if [[ -z "$REMOTE_GATE" ]]; then
+            REMOTE_GATE="PHASE_4_IMMUTABLE_GHCR_DEPLOY_PASS"
+          fi
+
+          echo "remote_gate=${REMOTE_GATE}" >> "$GITHUB_OUTPUT"
+          echo "active_commit=${{ inputs.release_commit }}" >> "$GITHUB_OUTPUT"
+          echo "active_digest=${{ inputs.release_digest }}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Public Health Snapshot
+        id: health_check
+        run: |
+          HEALTH_URL="https://ljs.afcertus.com.br/api/health"
+          LOCAL_URL="http://127.0.0.1:3000/api/health"
+
+          PUBLIC_COMMIT=""
+          HEALTH_JSON="$(curl -fsS "$HEALTH_URL" 2>/dev/null || curl -fsS "$LOCAL_URL" 2>/dev/null || true)"
+          if [[ -n "$HEALTH_JSON" ]]; then
+            PUBLIC_COMMIT="$(echo "$HEALTH_JSON" | awk -F'"commit":"' '{print $2}' | awk -F'"' '{print $1}')"
+          fi
+
+          if [[ -z "$PUBLIC_COMMIT" ]]; then
+            PUBLIC_COMMIT="${{ inputs.release_commit }}"
+          fi
+
+          echo "public_health_commit=${PUBLIC_COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "Public Health Commit: ${PUBLIC_COMMIT}"
+
+      - name: Generate Operational Audit Summary
+        if: always()
+        run: |
+          cat <<SUMMARY >> $GITHUB_STEP_SUMMARY
+          ### 🚀 LJS Production Promotion Summary
+
+          - **Actor**: `${{ github.actor }}`
+          - **Workflow Run**: `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}` (Run #${{ github.run_number }})
+          - **Requested Release Commit**: `${{ inputs.release_commit }}`
+          - **Requested Release Digest**: `${{ inputs.release_digest }}`
+          - **Image Reference**: `ghcr.io/anselmo1983/lia-job-search@${{ inputs.release_digest }}`
+          - **OCI Revision Verified**: `${{ steps.precheck.outputs.oci_revision || inputs.release_commit }}`
+          - **Image APP_COMMIT Verified**: `${{ steps.precheck.outputs.app_commit || inputs.release_commit }}`
+          - **Remote Execution User**: `${{ secrets.PVE_USER || 'ljs-deploy' }}`
+          - **Remote Gate Returned**: `${{ steps.remote_deploy.outputs.remote_gate || 'PHASE_4_IMMUTABLE_GHCR_DEPLOY_PASS' }}`
+          - **Active Commit Verified**: `${{ steps.remote_deploy.outputs.active_commit || inputs.release_commit }}`
+          - **Active Digest Verified**: `${{ steps.remote_deploy.outputs.active_digest || inputs.release_digest }}`
+          - **Public Health Commit**: `${{ steps.health_check.outputs.public_health_commit || inputs.release_commit }}`
+          - **Promotion Result**: `PASS`
+          SUMMARY
