@@ -94,9 +94,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/canvas-libs/@napi-rs ./node_modul
 COPY --from=builder --chown=nextjs:nodejs /app/sqlite-libs/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/.agents ./.agents
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "node scripts/validate-env.mjs runtime && exec node server.js"]

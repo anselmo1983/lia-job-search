@@ -4,12 +4,12 @@
   "private": true,
   "packageManager": "pnpm@11.18.0",
   "scripts": {
-    "build": "pnpm validate:env:prod && next build",
+    "validate:build": "node scripts/validate-env.mjs build",
+    "validate:runtime": "node scripts/validate-env.mjs runtime",
+    "build": "pnpm validate:build && next build",
     "dev": "next dev",
-    "start": "next start",
+    "start": "pnpm validate:runtime && node server.js",
     "typecheck": "tsc --noEmit",
-    "validate:env": "node tools/validate-env.mjs",
-    "validate:env:prod": "node tools/validate-env.mjs production",
     "prepare": "bash tools/install-hooks.sh"
   },
   "dependencies": {
