@@ -1,0 +1,18 @@
+services:
+  lia-job-search:
+    image: ${LJS_IMAGE:?LJS_IMAGE is required}
+    container_name: lia-job-search
+    restart: unless-stopped
+    env_file:
+      - runtime.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      LIA_DATA_DIR: /app/data
+    volumes:
+      - /opt/lia-job-search/data:/app/data
+    ports:
+      - "127.0.0.1:3000:3000"
+    security_opt:
+      - "no-new-privileges:true"
