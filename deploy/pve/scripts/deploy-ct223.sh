@@ -105,6 +105,11 @@ docker rm -f "${CONTAINER}-candidate" 2>/dev/null || true
 
 docker run -d --name "${CONTAINER}-candidate" \
   --env-file "${APP_DIR}/runtime.env" \
+  -e BIFROST_BASE_URL="${BIFROST_BASE_URL:-http://127.0.0.1:3000}" \
+  -e BIFROST_VIRTUAL_KEY="${BIFROST_VIRTUAL_KEY:-fake-vk}" \
+  -e GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-fake-id}" \
+  -e GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET:-fake-secret}" \
+  -e BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-fake-auth-secret-32-chars-long!}" \
   -e APP_COMMIT="${RELEASE_COMMIT}" \
   -v "${APP_DIR}/data:/app/data" \
   -p "127.0.0.1:${CANDIDATE_PORT}:3000" \
@@ -148,6 +153,12 @@ services:
       PORT: "3000"
       HOSTNAME: 0.0.0.0
       LIA_DATA_DIR: /app/data
+      APP_COMMIT: ${APP_COMMIT:-}
+      BIFROST_BASE_URL: ${BIFROST_BASE_URL:-http://127.0.0.1:3000}
+      BIFROST_VIRTUAL_KEY: ${BIFROST_VIRTUAL_KEY:-fake-vk}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-fake-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-fake-secret}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-fake-auth-secret-32-chars-long!}
     volumes:
       - /opt/lia-job-search/data:/app/data
     ports:
