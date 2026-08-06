@@ -12,7 +12,11 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 export const metadata: Metadata = {
   title: { default: "Lia OS", template: "%s | Lia OS" },
   description: "Lia Job Search — plataforma local-first de busca e candidatura a vagas com IA",
-  icons: { icon: "/icon.svg" },
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 }
 
 // CT224 — O AppShell (sidebar) agora vive no layout do grupo protegido
