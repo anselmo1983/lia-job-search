@@ -79,6 +79,9 @@ export const auth = betterAuth({
   },
   cookiePrefix: COOKIE_PREFIX,
   trustedOrigins: configuredTrustedOrigins,
+  advanced: {
+    trustedProxyHeaders: true,
+  },
   databaseHooks: {
     user: {
       create: {
