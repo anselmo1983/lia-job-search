@@ -1,9 +1,8 @@
-import { spawnSync } from "node:child_process"
+import { execFile } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
 import { getDb } from "@/lib/db"
-import { dataPath } from "@/lib/runtime/data-directory"
 import type { CanonicalJob } from "../types/canonical-job"
 import { normalizeJob } from "../canonical/normalizer"
 import { deduplicate } from "../canonical/deduplication"
@@ -34,7 +33,6 @@ export function canonicalJobUrl(input: string): string {
     url.hash = ""
     url.hostname = url.hostname.toLowerCase()
 
-    // Remove barras no final do path
     if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
       url.pathname = url.pathname.slice(0, -1)
     }
@@ -93,45 +91,35 @@ function isAdapterEnabled(adapter: SourceAdapter): boolean {
   return !/^enabled:\s*false\b/m.test(content)
 }
 
-function runAdapterCli(adapter: SourceAdapter, query: string, location: string): { results: Record<string, unknown>[]; failed: boolean } {
-  let result: any = null
+function executeCliAsync(command: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { cwd: process.cwd(), timeout: 20_000, encoding: "utf-8" }, (error, stdout) => {
+      if (error || !stdout) return reject(error || new Error("Sem saída"))
+      resolve(stdout)
+    })
+  })
+}
+
+async function runAdapterCliAsync(adapter: SourceAdapter, query: string, location: string): Promise<{ adapter: SourceAdapter; results: Record<string, unknown>[]; failed: boolean }> {
+  const tsxArgs = [adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
 
   try {
-    const tsxArgs = [adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
-    result = spawnSync("npx", ["tsx", ...tsxArgs], {
-      cwd: process.cwd(),
-      timeout: 25_000,
-      encoding: "utf-8",
-      shell: process.platform === "win32",
-    })
-  } catch (err) {
-    result = null
-  }
-
-  if (!result || result.error || result.status !== 0) {
+    const stdout = await executeCliAsync("npx", ["tsx", ...tsxArgs])
+    const parsed = JSON.parse(stdout)
+    return { adapter, results: (parsed?.results ?? []) as Record<string, unknown>[], failed: false }
+  } catch {
     try {
       const bunArgs = ["run", adapter.cliPath, "search", ...adapter.buildArgs(query, location), "--format", "json"]
-      result = spawnSync("bun", bunArgs, {
-        cwd: process.cwd(),
-        timeout: 25_000,
-        encoding: "utf-8",
-        shell: process.platform === "win32",
-      })
+      const stdout = await executeCliAsync("bun", bunArgs)
+      const parsed = JSON.parse(stdout)
+      return { adapter, results: (parsed?.results ?? []) as Record<string, unknown>[], failed: false }
     } catch {
-      return { results: [], failed: true }
+      return { adapter, results: [], failed: true }
     }
-  }
-
-  if (!result || result.error || result.status !== 0 || !result.stdout) return { results: [], failed: true }
-  try {
-    const parsed = JSON.parse(result.stdout)
-    return { results: (parsed?.results ?? []) as Record<string, unknown>[], failed: false }
-  } catch {
-    return { results: [], failed: true }
   }
 }
 
-// Adaptadores Suportados (Tiers 0 e 1)
+// Adaptadores de Portais Suportados
 const linkedinAdapter: SourceAdapter = {
   name: "linkedin",
   tier: "tier1_aggregator",
@@ -139,24 +127,17 @@ const linkedinAdapter: SourceAdapter = {
   buildArgs: (q, l) => ["-q", q, "-l", l || "Remote", "--jobage", "30"],
   normalize: (raw, source, tier) => {
     if (!raw.id || !raw.url) return null
-    const title = String(raw.title || "(sem título)")
-    const company = String(raw.company || "Empresa não informada")
-    const url = String(raw.url)
-    const description = String(raw.description || "")
-    const location = String(raw.location || "Remote")
-    const date = raw.date ? String(raw.date).slice(0, 10) : undefined
-
     return normalizeJob({
       id: `${source}_${raw.id}`,
       source,
       sourceJobId: String(raw.id),
-      sourceUrl: url,
-      canonicalUrl: url,
-      companyName: company,
-      title,
-      descriptionRaw: description,
-      locationRaw: location,
-      publishedAt: date,
+      sourceUrl: String(raw.url),
+      canonicalUrl: String(raw.url),
+      companyName: String(raw.company || "Empresa não informada"),
+      title: String(raw.title || "(sem título)"),
+      descriptionRaw: String(raw.description || ""),
+      locationRaw: String(raw.location || "Remote"),
+      publishedAt: raw.date ? String(raw.date).slice(0, 10) : undefined,
       metadata: { tier },
     })
   },
@@ -169,24 +150,17 @@ const freehireAdapter: SourceAdapter = {
   buildArgs: (q) => ["-q", q, "--limit", "15"],
   normalize: (raw, source, tier) => {
     if (!raw.id || !raw.url) return null
-    const title = String(raw.title || "(sem título)")
-    const company = String(raw.company || "Empresa não informada")
-    const url = String(raw.url)
-    const description = String(raw.description || "")
-    const location = String(raw.location || "Remoto")
-    const date = raw.date ? String(raw.date).slice(0, 10) : undefined
-
     return normalizeJob({
       id: `${source}_${raw.id}`,
       source,
       sourceJobId: String(raw.id),
-      sourceUrl: url,
-      canonicalUrl: url,
-      companyName: company,
-      title,
-      descriptionRaw: description,
-      locationRaw: location,
-      publishedAt: date,
+      sourceUrl: String(raw.url),
+      canonicalUrl: String(raw.url),
+      companyName: String(raw.company || "Empresa não informada"),
+      title: String(raw.title || "(sem título)"),
+      descriptionRaw: String(raw.description || ""),
+      locationRaw: String(raw.location || "Remoto"),
+      publishedAt: raw.date ? String(raw.date).slice(0, 10) : undefined,
       metadata: { tier },
     })
   },
@@ -199,24 +173,17 @@ const indeedbrAdapter: SourceAdapter = {
   buildArgs: (q, l) => ["-q", q, "-l", l || "Brasil", "--limit", "15"],
   normalize: (raw, source, tier) => {
     if (!raw.id || !raw.url) return null
-    const title = String(raw.title || "(sem título)")
-    const company = String(raw.company || "Empresa não informada")
-    const url = String(raw.url)
-    const description = String(raw.description || "")
-    const location = String(raw.location || "Brasil")
-    const date = raw.date ? String(raw.date).slice(0, 10) : undefined
-
     return normalizeJob({
       id: `${source}_${raw.id}`,
       source,
       sourceJobId: String(raw.id),
-      sourceUrl: url,
-      canonicalUrl: url,
-      companyName: company,
-      title,
-      descriptionRaw: description,
-      locationRaw: location,
-      publishedAt: date,
+      sourceUrl: String(raw.url),
+      canonicalUrl: String(raw.url),
+      companyName: String(raw.company || "Empresa não informada"),
+      title: String(raw.title || "(sem título)"),
+      descriptionRaw: String(raw.description || ""),
+      locationRaw: String(raw.location || "Brasil"),
+      publishedAt: raw.date ? String(raw.date).slice(0, 10) : undefined,
       metadata: { tier },
     })
   },
@@ -229,42 +196,64 @@ const jobindexAdapter: SourceAdapter = {
   buildArgs: (q, l) => ["-q", l ? `${q} ${l}` : q, "--jobage", "30"],
   normalize: (raw, source, tier) => {
     if (!raw.id || !raw.url) return null
-    const title = String(raw.title || "(sem título)")
-    const company = String(raw.company || "Empresa não informada")
-    const url = String(raw.url)
-    const description = String(raw.description || "")
-    const location = String(raw.location || "Dinamarca")
-    const date = raw.date ? String(raw.date).slice(0, 10) : undefined
-
     return normalizeJob({
       id: `${source}_${raw.id}`,
       source,
       sourceJobId: String(raw.id),
-      sourceUrl: url,
-      canonicalUrl: url,
-      companyName: company,
-      title,
-      descriptionRaw: description,
-      locationRaw: location,
-      publishedAt: date,
+      sourceUrl: String(raw.url),
+      canonicalUrl: String(raw.url),
+      companyName: String(raw.company || "Empresa não informada"),
+      title: String(raw.title || "(sem título)"),
+      descriptionRaw: String(raw.description || ""),
+      locationRaw: String(raw.location || "Dinamarca"),
+      publishedAt: raw.date ? String(raw.date).slice(0, 10) : undefined,
       metadata: { tier },
     })
   },
 }
 
-const ADAPTERS: SourceAdapter[] = [linkedinAdapter, freehireAdapter, indeedbrAdapter, jobindexAdapter]
+const jobnetAdapter: SourceAdapter = {
+  name: "jobnet",
+  tier: "tier1_aggregator",
+  cliPath: ".agents/skills/jobnet-search/cli/src/cli.ts",
+  buildArgs: (q) => ["-q", q, "--limit", "15"],
+  normalize: (raw, source, tier) => {
+    if (!raw.id || !raw.url) return null
+    return normalizeJob({
+      id: `${source}_${raw.id}`,
+      source,
+      sourceJobId: String(raw.id),
+      sourceUrl: String(raw.url),
+      canonicalUrl: String(raw.url),
+      companyName: String(raw.company || "Empresa não informada"),
+      title: String(raw.title || "(sem título)"),
+      descriptionRaw: String(raw.description || ""),
+      locationRaw: String(raw.location || "Denmark"),
+      publishedAt: raw.date ? String(raw.date).slice(0, 10) : undefined,
+      metadata: { tier },
+    })
+  },
+}
+
+const ADAPTERS: SourceAdapter[] = [linkedinAdapter, freehireAdapter, indeedbrAdapter, jobindexAdapter, jobnetAdapter]
 
 export async function runMultiSourceDiscovery(query: string, location: string) {
   const diagnostics: PortalDiagnostic[] = []
   const canonicalJobs: CanonicalJob[] = []
 
-  for (const adapter of ADAPTERS) {
-    if (!isAdapterEnabled(adapter)) {
+  const enabledAdapters = ADAPTERS.filter((adapter) => {
+    const enabled = isAdapterEnabled(adapter)
+    if (!enabled) {
       diagnostics.push({ portal: adapter.name, tier: adapter.tier, enabled: false, failed: false, returned: 0 })
-      continue
     }
+    return enabled
+  })
 
-    const { results, failed } = runAdapterCli(adapter, query, location)
+  // Execução Paralela Simultânea de todos os adaptadores
+  const adapterPromises = enabledAdapters.map((adapter) => runAdapterCliAsync(adapter, query, location))
+  const adapterResults = await Promise.all(adapterPromises)
+
+  for (const { adapter, results, failed } of adapterResults) {
     let returned = 0
 
     for (const raw of results) {
@@ -287,7 +276,7 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
     diagnostics.push({ portal: adapter.name, tier: adapter.tier, enabled: true, failed, returned })
   }
 
-  // Persistência em SQLite com auditoria de estado inicial
+  // Persistência em Lote com Transação Atômica no SQLite
   try {
     const db = getDb()
     const stmtInsertJob = db.prepare(`
@@ -305,29 +294,32 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
       VALUES (?, ?, NULL, 'discovered', 'agent', ?)
     `)
 
-    for (const job of canonicalJobs) {
-      const locStr = job.locations[0]?.rawLocation || [job.locations[0]?.city, job.locations[0]?.state, job.locations[0]?.country].filter(Boolean).join(", ") || ""
-      const tier = (job.provenance[0]?.metadata as any)?.tier || "tier1_aggregator"
+    const transaction = db.transaction((jobs: CanonicalJob[]) => {
+      for (const job of jobs) {
+        const locStr = job.locations[0]?.rawLocation || [job.locations[0]?.city, job.locations[0]?.state, job.locations[0]?.country].filter(Boolean).join(", ") || ""
+        const tier = (job.provenance[0]?.metadata as any)?.tier || "tier1_aggregator"
 
-      stmtInsertJob.run(
-        job.id,
-        job.sourceJobId || null,
-        job.source,
-        job.canonicalUrl || job.sourceUrl,
-        job.company.name,
-        job.title,
-        locStr,
-        job.descriptionRaw,
-        job.publishedAt || null,
-        job.fingerprints.contentHash || null,
-        "discovered"
-      )
+        stmtInsertJob.run(
+          job.id,
+          job.sourceJobId || null,
+          job.source,
+          job.canonicalUrl || job.sourceUrl,
+          job.company.name,
+          job.title,
+          locStr,
+          job.descriptionRaw,
+          job.publishedAt || null,
+          job.fingerprints.contentHash || null,
+          "discovered"
+        )
 
-      // Inserir registro inicial de auditoria
-      try {
-        stmtHistory.run(`hist_${crypto.randomUUID()}`, job.id, `Vaga descoberta via ${job.source} (Tier: ${tier})`)
-      } catch {}
-    }
+        try {
+          stmtHistory.run(`hist_${crypto.randomUUID()}`, job.id, `Vaga descoberta via ${job.source} (Tier: ${tier})`)
+        } catch {}
+      }
+    })
+
+    transaction(canonicalJobs)
   } catch (err) {
     console.error("Erro ao persistir vagas descobertas no SQLite:", err)
   }

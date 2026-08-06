@@ -75,10 +75,24 @@ function parseCsv(input: string): string[][] {
 
 export async function getApplications(): Promise<Application[]> {
   try {
+    const { getDb } = await import("./db")
+    const db = getDb()
+    const rows = db.prepare(`
+      SELECT a.created_at as date, j.company, 'Tech' as sector, j.title as role, 'Full-time' as roleType,
+             a.source as channel, a.status, '' as contactPerson, j.fit as fitRating, a.notes,
+             '' as cvFile, '' as coverLetterFile, a.source
+      FROM applications a
+      LEFT JOIN jobs j ON a.job_id = j.id
+      ORDER BY a.created_at DESC
+    `).all() as Application[]
+
+    if (rows.length > 0) return rows
+
+    // Legacy CSV Fallback
     const content = await fs.readFile(path.join(root, "job_search_tracker.csv"), "utf8")
-    const [header = [], ...rows] = parseCsv(content)
+    const [header = [], ...csvRows] = parseCsv(content)
     const value = (row: string[], name: string) => row[header.indexOf(name)]?.trim() ?? ""
-    return rows.map((row) => ({
+    return csvRows.map((row) => ({
       date: value(row, "date"),
       company: value(row, "company"),
       sector: value(row, "sector"),
@@ -116,6 +130,25 @@ function normalizeJobs(data: unknown): Array<Record<string, unknown>> {
 
 export async function getJobs(): Promise<Job[]> {
   try {
+    const { getDb } = await import("./db")
+    const db = getDb()
+    const rows = db.prepare("SELECT * FROM jobs ORDER BY discovered_at DESC").all() as any[]
+
+    if (rows.length > 0) {
+      return rows.map((job, index) => ({
+        key: String(job.id || index),
+        title: String(job.title || "Untitled role"),
+        company: String(job.company || "Unknown company"),
+        location: String(job.location || "Not specified"),
+        url: String(job.source_url || ""),
+        status: String(job.status || "discovered"),
+        fit: String(job.fit || "unrated"),
+        score: typeof job.score === "number" ? job.score : null,
+        deadline: String(job.published_at || ""),
+      }))
+    }
+
+    // Legacy JSON Fallback
     const content = await fs.readFile(path.join(root, "job_scraper", "seen_jobs.json"), "utf8")
     return normalizeJobs(JSON.parse(content)).map((job, index) => ({
       key: String(job.key ?? job.id ?? index),

@@ -159,7 +159,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 if [[ -f "${REPO_ROOT}/compose.production.yml" ]]; then
-  install -m 0644 "${REPO_ROOT}/compose.production.yml" "${APP_DIR}/compose.production.yml"
+  if [[ "$(realpath "${REPO_ROOT}/compose.production.yml")" != "$(realpath "${APP_DIR}/compose.production.yml")" ]]; then
+    install -m 0644 "${REPO_ROOT}/compose.production.yml" "${APP_DIR}/compose.production.yml"
+  fi
 else
   cat <<'YAML' > "${APP_DIR}/compose.production.yml"
 services:

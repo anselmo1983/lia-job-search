@@ -13,7 +13,24 @@ async function loadCandidateProfileText(givenProfile?: string): Promise<string> 
     return givenProfile.trim()
   }
 
-  // 1. Tenta carregar do profile.json ($LIA_DATA_DIR/profile/profile.json)
+  // 1. Tenta carregar do banco SQLite (tabela profile)
+  try {
+    const { getDb } = await import("@/lib/db")
+    const { getServerSession } = await import("@/lib/auth/server")
+    const session = await getServerSession()
+    if (session?.user?.id) {
+      const db = getDb()
+      const profileRow = db.prepare("SELECT * FROM profile WHERE user_id = ?").get(session.user.id) as any
+      if (profileRow?.structured_json) {
+        return profileRow.structured_json
+      }
+      if (profileRow?.summary) {
+        return profileRow.summary
+      }
+    }
+  } catch {}
+
+  // 2. Fallback: tenta carregar do profile.json
   try {
     const jsonPath = dataPath("profile", "profile.json")
     const jsonStr = await fs.readFile(jsonPath, "utf8")
@@ -29,24 +46,11 @@ async function loadCandidateProfileText(givenProfile?: string): Promise<string> 
         const secondary = Array.isArray(p.skills.secondary) ? p.skills.secondary.join(", ") : ""
         parts.push(`Habilidades: ${primary} ${secondary}`)
       }
-      if (Array.isArray(p.experience) && p.experience.length > 0) {
-        parts.push("Experiência Profissional:")
-        p.experience.forEach((exp: any) => {
-          parts.push(`- ${exp.title || ""} na ${exp.company || ""} (${exp.period || ""})`)
-          if (Array.isArray(exp.achievements)) {
-            exp.achievements.forEach((ach: string) => parts.push(`  * ${ach}`))
-          }
-        })
-      }
-      if (Array.isArray(p.education) && p.education.length > 0) {
-        parts.push("Educação:")
-        p.education.forEach((edu: any) => parts.push(`- ${edu.degree || ""} em ${edu.field || ""}, ${edu.institution || ""} (${edu.year || ""})`))
-      }
       if (parts.length > 0) return parts.join("\n")
     }
   } catch {}
 
-  // 2. Fallback: lê do 01-candidate-profile.md (.claude/...)
+  // 3. Fallback: lê do 01-candidate-profile.md (.claude/...)
   try {
     const mdPath = path.join(process.cwd(), ".claude/skills/job-application-assistant/01-candidate-profile.md")
     const mdContent = await fs.readFile(mdPath, "utf8")

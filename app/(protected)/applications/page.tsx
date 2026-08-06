@@ -32,6 +32,7 @@ export default function ApplicationsPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [form, setForm] = useState({ company: "", role: "", status: "applied", notes: "", date: new Date().toISOString().split("T")[0] })
 
   useEffect(() => { loadApplications() }, [])
@@ -39,9 +40,22 @@ export default function ApplicationsPage() {
   async function loadApplications() {
     setLoading(true)
     try {
-      const res = await fetchWithAuth("/api/outcome")
+      const res = await fetchWithAuth("/api/applications")
       const data = await res.json()
-      setApplications(data.applications || [])
+      if (Array.isArray(data.applications) && data.applications.length > 0) {
+        setApplications(data.applications.map((a: any) => ({
+          id: a.id,
+          company: a.job_company || a.company || "Empresa não informada",
+          role: a.job_title || a.role || "Cargo não informado",
+          status: a.status || "applied",
+          notes: a.notes || "",
+          date: a.applied_at || a.created_at || a.date || "",
+        })))
+      } else {
+        const fallbackRes = await fetchWithAuth("/api/outcome")
+        const fallbackData = await fallbackRes.json()
+        setApplications(fallbackData.applications || [])
+      }
     } catch (err) { console.error(err) }
     setLoading(false)
   }
@@ -63,9 +77,30 @@ export default function ApplicationsPage() {
     setSaving(false)
   }
 
+  async function updateStatus(id: string, newStatus: string) {
+    setUpdatingId(id)
+    try {
+      await fetchWithAuth("/api/applications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: newStatus }),
+      })
+      await loadApplications()
+    } catch (err) { console.error(err) }
+    setUpdatingId(null)
+  }
+
+  async function deleteApp(id: string) {
+    if (!confirm("Tem certeza que deseja remover esta candidatura?")) return
+    try {
+      await fetchWithAuth(`/api/applications?id=${id}`, { method: "DELETE" })
+      await loadApplications()
+    } catch (err) { console.error(err) }
+  }
+
   return (
     <>
-      <PageHeader title="Candidaturas" description="Registre e acompanhe todas as suas candidaturas em um só lugar." />
+      <PageHeader title="Candidaturas" description="Registre, monitore e gerencie o histórico auditável de cada etapa das suas candidaturas." />
 
       <div className="mb-6 flex justify-end">
         <Button onClick={() => setShowForm(!showForm)}>
@@ -111,9 +146,10 @@ export default function ApplicationsPage() {
         <div className="grid gap-4">
           {applications.map((app, i) => {
             const closed = finalStatuses.has((app.status || "").toLowerCase())
+            const isUpdating = updatingId === app.id
             return (
-              <article key={i} className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row">
+              <article key={app.id || i} className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-lg font-semibold text-white">{app.role || "Cargo não informado"}</h2>
@@ -121,9 +157,36 @@ export default function ApplicationsPage() {
                         {formatStatusPtBr(app.status)}
                       </span>
                     </div>
-                    <p className="mt-1 text-slate-400">{app.company || "Empresa não informada"} · {app.date || "Data não informada"}</p>
+                    <p className="mt-1 text-slate-400">{app.company || "Empresa não informada"} · {app.date ? String(app.date).slice(0, 10) : "Data não informada"}</p>
                   </div>
-                  {app.fit_rating && <div className="text-sm text-slate-400 sm:text-right"><p>Fit: <span className="text-slate-200 font-semibold">{app.fit_rating}</span></p></div>}
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={app.status}
+                      disabled={isUpdating}
+                      onChange={(e) => updateStatus(app.id, e.target.value)}
+                      className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-emerald-400"
+                    >
+                      <option value="applied">Candidatado (Applied)</option>
+                      <option value="screening">Triagem (Screening)</option>
+                      <option value="interview">Entrevista (Interview)</option>
+                      <option value="technical">Desafio Técnico</option>
+                      <option value="offer">Proposta Recebida</option>
+                      <option value="hired">Contratado (Hired)</option>
+                      <option value="rejected">Rejeitado</option>
+                      <option value="withdrawn">Retirado</option>
+                    </select>
+
+                    {app.id && (
+                      <button
+                        onClick={() => deleteApp(app.id)}
+                        className="rounded-lg p-2 text-slate-500 hover:bg-slate-800 hover:text-red-400 transition text-xs"
+                        title="Remover candidatura"
+                      >
+                        Excluir
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {app.notes && <p className="mt-4 border-t border-slate-800 pt-4 text-sm leading-6 text-slate-400">{app.notes}</p>}
               </article>
