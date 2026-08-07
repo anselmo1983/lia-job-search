@@ -280,12 +280,13 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
   try {
     const db = getDb()
     const stmtInsertJob = db.prepare(`
-      INSERT INTO jobs (id, external_id, source, source_url, company, title, location, description, published_at, content_hash, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO jobs (id, external_id, source, source_url, company, title, location, work_mode, description, published_at, content_hash, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         company = excluded.company,
         location = excluded.location,
+        work_mode = excluded.work_mode,
         updated_at = datetime('now')
     `)
 
@@ -298,6 +299,7 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
       for (const job of jobs) {
         const locStr = job.locations[0]?.rawLocation || [job.locations[0]?.city, job.locations[0]?.state, job.locations[0]?.country].filter(Boolean).join(", ") || ""
         const tier = (job.provenance[0]?.metadata as any)?.tier || "tier1_aggregator"
+        const mode = job.workplaceType && job.workplaceType !== "unknown" ? job.workplaceType : null
 
         stmtInsertJob.run(
           job.id,
@@ -307,6 +309,7 @@ export async function runMultiSourceDiscovery(query: string, location: string) {
           job.company.name,
           job.title,
           locStr,
+          mode,
           job.descriptionRaw,
           job.publishedAt || null,
           job.fingerprints.contentHash || null,
