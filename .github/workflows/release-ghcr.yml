@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   packages: write
+  actions: write
 
 concurrency:
   group: release-ghcr-${{ github.ref }}
@@ -59,3 +60,26 @@ jobs:
           echo "RELEASE_COMMIT=${{ github.sha }}"
           echo "RELEASE_IMAGE=ghcr.io/anselmo1983/lia-job-search:${{ github.sha }}"
           echo "RELEASE_DIGEST=${{ steps.build.outputs.digest }}"
+
+      - name: Auto-trigger production promotion
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const digest = '${{ steps.build.outputs.digest }}';
+            const sha = '${{ github.sha }}';
+            if (!digest || !digest.startsWith('sha256:')) {
+              core.setFailed(`Invalid digest: ${digest}`);
+              return;
+            }
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'promote-production.yml',
+              ref: 'master',
+              inputs: {
+                release_commit: sha,
+                release_digest: digest
+              }
+            });
+            core.info(`Dispatched promote-production for ${sha} @ ${digest}`);
